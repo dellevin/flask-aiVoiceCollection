@@ -1,0 +1,16 @@
+{
+  "rvc_project_path": "E:\\AI\\RVC\\RVC1006Nvidia",
+  "model_dir": "E:\\AI\\RVC\\rvc_con\\weights",
+  "model_dir_mode": "absolute",
+  "index_dir": "E:\\AI\\RVC\\rvc_con\\index",
+  "index_dir_mode": "absolute",
+  "last_model": "bubu-sing.pth",
+  "last_index": "E:\\AI\\RVC\\rvc_con\\index\\bubu-sing_v2.index",
+  "f0_up_key": 0,
+  "f0_method": "rmvpe",
+  "index_rate": 1,
+  "filter_radius": 3,
+  "resample_sr": 32000,
+  "rms_mix_rate": 0.5,
+  "protect": 0.37
+}

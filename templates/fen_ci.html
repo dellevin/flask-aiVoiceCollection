@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='font-awesome.css') }}">
+    <title>Jieba 分词</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+        }
+        /* 左侧面板 */
+        .left-panel {
+            width: 50%;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid #e8e8e8;
+            background: #fff;
+            height: 100vh;
+            overflow-y: auto;
+        }
+        .left-panel::-webkit-scrollbar { width: 4px; }
+        .left-panel::-webkit-scrollbar-thumb { background: #ddd; border-radius: 2px; }
+        .input-section { padding: 20px 24px 28px; }
+
+        /* 头部 */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 2px;
+        }
+        .header h1 {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1a1a1a;
+            letter-spacing: -0.01em;
+        }
+        .subtitle { color: #aaa; font-size: 12px; margin-bottom: 16px; }
+
+        /* 分组卡片 */
+        .section-card {
+            background: #fafafa;
+            border: 1px solid #f0f0f0;
+            border-radius: 10px;
+            padding: 14px 16px;
+            margin-bottom: 12px;
+        }
+        .section-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .section-title i { font-size: 11px; }
+
+        /* 输入组 */
+        .input-group { margin-bottom: 10px; position: relative; }
+        .input-group:last-child { margin-bottom: 0; }
+        .input-group label {
+            display: block; font-size: 12px; font-weight: 500;
+            margin-bottom: 4px; color: #555;
+        }
+        .input-group .input-wrap { position: relative; }
+        .input-group .input-wrap i {
+            position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+            color: #c0c0c0; font-size: 12px; pointer-events: none;
+        }
+        .input-group input,
+        .input-group select {
+            width: 100%; padding: 7px 10px 7px 32px;
+            border: 1px solid #e0e0e0; border-radius: 6px;
+            background: #fff; color: #333; font-size: 13px;
+            outline: none; transition: all 0.15s ease;
+        }
+        .input-group input::placeholder { color: #c0c0c0; }
+        .input-group input:focus,
+        .input-group select:focus {
+            border-color: #0078d4;
+            box-shadow: 0 0 0 2px rgba(0,120,212,0.06);
+        }
+        .input-group.no-icon input,
+        .input-group.no-icon select { padding-left: 10px; }
+
+        /* textarea */
+        .text-input {
+            width: 100%; padding: 10px 12px;
+            border: 1px solid #e0e0e0; border-radius: 6px;
+            font-size: 13px; outline: none; resize: vertical;
+            min-height: 200px; font-family: inherit; transition: border-color 0.15s;
+        }
+        .text-input:focus { border-color: #0078d4; box-shadow: 0 0 0 2px rgba(0,120,212,0.06); }
+
+        /* 按钮 */
+        .btn {
+            padding: 7px 14px; border: none; border-radius: 6px;
+            font-size: 12px; font-weight: 600; cursor: pointer;
+            transition: all 0.12s ease;
+            display: inline-flex; align-items: center; gap: 5px;
+        }
+        .btn-primary { background: #0078d4; color: #fff; }
+        .btn-primary:hover:not(:disabled) { background: #006cbd; }
+        .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+        .btn-outline { background: #fff; color: #666; border: 1px solid #e0e0e0; }
+        .btn-outline:hover { background: #f5f5f5; color: #333; }
+        .btn-block { width: 100%; justify-content: center; }
+        .btn-row { display: flex; gap: 8px; }
+
+        /* 合成分词按钮 */
+        .run-btn {
+            width: 100%; padding: 10px 18px;
+            background: linear-gradient(135deg, #0078d4, #005fa3);
+            color: #fff; border: none; border-radius: 8px;
+            font-size: 14px; font-weight: 600;
+            cursor: pointer; transition: all 0.15s ease;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            margin-top: 14px;
+            box-shadow: 0 2px 8px rgba(0,120,212,0.2);
+        }
+        .run-btn:hover:not(:disabled) {
+            background: linear-gradient(135deg, #006cbd, #004e8a);
+            box-shadow: 0 4px 12px rgba(0,120,212,0.3);
+            transform: translateY(-1px);
+        }
+        .run-btn:active:not(:disabled) { transform: translateY(0); }
+        .run-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .spinner {
+            display: inline-block; width: 16px; height: 16px;
+            border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff;
+            border-radius: 50%; animation: spin 0.8s linear infinite;
+        }
+
+        /* ===== 右侧面板 ===== */
+        .right-panel {
+            flex: 1;
+            background: #fff;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        .right-header {
+            padding: 20px 24px 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .right-header h2 {
+            font-size: 15px; font-weight: 600; color: #333;
+        }
+        .result-badge {
+            font-size: 12px; font-weight: 600; color: #0078d4;
+            background: #e8f0fe; padding: 2px 10px; border-radius: 10px;
+        }
+
+        /* 统计栏 */
+        .stats-bar {
+            display: flex; flex-wrap: wrap; gap: 16px;
+            padding: 12px 24px; font-size: 12px; color: #888;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .stats-bar span { display: flex; align-items: center; gap: 4px; }
+        .stats-bar .num { font-weight: 700; color: #333; }
+
+        /* 结果区域 */
+        .result-area {
+            flex: 1; overflow-y: auto; padding: 20px 24px;
+        }
+        .result-area::-webkit-scrollbar { width: 4px; }
+        .result-area::-webkit-scrollbar-thumb { background: #ddd; border-radius: 2px; }
+
+        /* 标签 */
+        .token-list { display: flex; flex-wrap: wrap; gap: 6px; }
+        .token-tag {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 4px 10px; border-radius: 5px;
+            font-size: 13px; cursor: default; transition: transform 0.1s;
+        }
+        .token-tag:hover { transform: translateY(-1px); }
+        .token-tag .type {
+            font-size: 10px; opacity: 0.65;
+            background: rgba(0,0,0,0.06); padding: 1px 5px;
+            border-radius: 3px;
+        }
+
+        /* 占位 */
+        .placeholder {
+            flex: 1; display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            color: #ccc; gap: 12px;
+        }
+        .placeholder i { font-size: 48px; }
+        .placeholder p { font-size: 13px; }
+        .placeholder .hint { font-size: 11px; color: #ddd; }
+
+        /* Toast */
+        .toast {
+            position: fixed; top: 20px; left: 50%;
+            transform: translateX(-50%);
+            background: #0a7a1a; color: #fff;
+            padding: 10px 24px; border-radius: 8px;
+            font-size: 13px; font-weight: 500;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            opacity: 0; transition: opacity 0.3s;
+            z-index: 9999; pointer-events: none;
+        }
+        .toast.show { opacity: 1; }
+        .toast.error { background: #c62828; }
+
+        @media (max-width: 768px) {
+            body { flex-direction: column; height: auto; overflow: auto; }
+            .left-panel { width: 100% !important; height: auto; border-right: none; border-bottom: 1px solid #e8e8e8; overflow-y: visible; }
+            .right-panel { height: auto; min-height: 50vh; }
+            .input-section { padding: 14px 16px 20px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="toast" id="toast"></div>
+
+    <!-- 左侧：输入 -->
+    <div class="left-panel">
+        <div class="input-section">
+            <div class="header">
+                <h1><i class="fas fa-scissors" style="color:#0078d4;font-size:16px;margin-right:6px;"></i>Jieba 分词</h1>
+            </div>
+            <p class="subtitle">中文分词与词性标注工具</p>
+
+            <div class="section-card">
+                <div class="section-title"><i class="fas fa-key"></i> 认证</div>
+                <div class="input-group">
+                    <label>Bearer Token</label>
+                    <div class="input-wrap">
+                        <i class="fas fa-key"></i>
+                        <input type="text" id="tokenInput" placeholder="请输入 Token">
+                    </div>
+                </div>
+            </div>
+
+            <div class="section-card" style="flex:1;">
+                <div class="section-title"><i class="fas fa-file-lines"></i> 输入文本</div>
+                <div class="input-group no-icon">
+                    <textarea id="inputText" class="text-input" placeholder="在此输入需要分词的文本...&#10;支持中英文混合，Ctrl+Enter 快速分词" style="min-height:240px;"></textarea>
+                </div>
+                <div class="btn-row" style="margin-top:10px;">
+                    <button class="btn btn-outline" onclick="clearAll()"><i class="fas fa-times-circle"></i> 清空</button>
+                </div>
+                <button class="run-btn" id="tokenizeBtn" onclick="doTokenize()">
+                    <i class="fas fa-scissors"></i> 开始分词
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 右侧：结果 -->
+    <div class="right-panel">
+        <div class="right-header">
+            <h2><i class="fas fa-list" style="color:#0078d4;margin-right:6px;"></i>分词结果</h2>
+            <span class="result-badge" id="totalCount" style="display:none;"></span>
+        </div>
+        <div id="statsBar" class="stats-bar" style="display:none;"></div>
+        <div id="resultArea" class="result-area">
+            <div class="placeholder">
+                <i class="fas fa-scissors"></i>
+                <p>输入文本并点击"开始分词"查看结果</p>
+                <span class="hint">Ctrl + Enter 快速分词</span>
+            </div>
+        </div>
+    </div>
+
+<script>
+    var tokenInput = document.getElementById('tokenInput');
+    var inputText = document.getElementById('inputText');
+    var resultArea = document.getElementById('resultArea');
+    var statsBar = document.getElementById('statsBar');
+    var totalCount = document.getElementById('totalCount');
+    var tokenizeBtn = document.getElementById('tokenizeBtn');
+
+    tokenInput.value = 'DdzBgb8GEkBpA8gtCJXP24hGJz9bXpEOi6z91fHm25X59q5968XqtLxPi1MfiTHJ';
+
+    function showToast(msg, isError) {
+        var t = document.getElementById('toast');
+        t.textContent = msg;
+        t.className = 'toast show' + (isError ? ' error' : '');
+        setTimeout(function() { t.className = 'toast'; }, 1500);
+    }
+
+    function clearAll() {
+        inputText.value = '';
+        resultArea.innerHTML = '<div class="placeholder"><i class="fas fa-scissors"></i><p>输入文本并点击"开始分词"查看结果</p><span class="hint">Ctrl + Enter 快速分词</span></div>';
+        statsBar.style.display = 'none';
+        totalCount.style.display = 'none';
+    }
+
+    var typeNames = {
+        chinese: '中文', english: '英文', compound_eng: '复合词',
+        number: '数字', punctuation: '标点'
+    };
+
+    var typeColors = {
+        chinese:      { bg: '#fce7f3', color: '#be185d', border: '#fbcfe8' },
+        english:      { bg: '#dbeafe', color: '#1e40af', border: '#bfdbfe' },
+        compound_eng: { bg: '#ddd6fe', color: '#5b21b6', border: '#c4b5fd' },
+        number:       { bg: '#d1fae5', color: '#065f46', border: '#a7f3d0' },
+        punctuation:  { bg: '#f3f4f6', color: '#4b5563', border: '#e5e7eb' }
+    };
+
+    async function doTokenize() {
+        var text = inputText.value.trim();
+        var token = tokenInput.value.trim();
+        if (!text) { showToast('请输入需要分词的文本', true); return; }
+        if (!token) { showToast('请输入 Token', true); return; }
+
+        tokenizeBtn.disabled = true;
+        tokenizeBtn.innerHTML = '<span class="spinner"></span> 分词中...';
+        resultArea.innerHTML = '<div class="placeholder"><span class="spinner" style="border-color:#e0e0e0;border-top-color:#0078d4;width:32px;height:32px;"></span><p style="color:#999;margin-top:8px;">正在分词...</p></div>';
+        statsBar.style.display = 'none';
+        totalCount.style.display = 'none';
+
+        try {
+            var res = await fetch('/fen-ci/tokenize', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                body: JSON.stringify({ input_text: text })
+            });
+            var data = await res.json();
+
+            if (data.success) {
+                var tokens = data.tokens;
+                var stats = data.stats;
+
+                var html = tokens.map(function(t) {
+                    var s = typeColors[t.type] || typeColors.punctuation;
+                    return '<span class="token-tag" style="background:' + s.bg + ';color:' + s.color + ';border:1px solid ' + s.border + '">' +
+                        t.text + '<span class="type">' + (typeNames[t.type] || t.type) + '</span></span>';
+                }).join('');
+
+                resultArea.innerHTML = '<div class="token-list">' + html + '</div>';
+                totalCount.textContent = '共 ' + stats.total + ' 个词';
+                totalCount.style.display = 'inline';
+
+                statsBar.innerHTML =
+                    '<span>总计: <span class="num">' + stats.total + '</span></span>' +
+                    '<span>中文: <span class="num">' + stats.chinese + '</span></span>' +
+                    '<span>英文: <span class="num">' + stats.english + '</span></span>' +
+                    '<span>复合词: <span class="num">' + stats.compound_eng + '</span></span>' +
+                    '<span>数字: <span class="num">' + stats.number + '</span></span>' +
+                    '<span>标点: <span class="num">' + stats.punctuation + '</span></span>';
+                statsBar.style.display = 'flex';
+            } else {
+                resultArea.innerHTML = '<div class="placeholder" style="color:#c62828;"><i class="fas fa-circle-exclamation"></i><p>' + (data.error || '未知错误') + '</p></div>';
+                statsBar.style.display = 'none';
+                totalCount.style.display = 'none';
+            }
+        } catch (err) {
+            resultArea.innerHTML = '<div class="placeholder" style="color:#c62828;"><i class="fas fa-circle-exclamation"></i><p>请求失败: ' + err.message + '</p></div>';
+            statsBar.style.display = 'none';
+            totalCount.style.display = 'none';
+        } finally {
+            tokenizeBtn.disabled = false;
+            tokenizeBtn.innerHTML = '<i class="fas fa-scissors"></i> 开始分词';
+        }
+    }
+
+    inputText.addEventListener('keydown', function(e) {
+        if (e.ctrlKey && e.key === 'Enter') doTokenize();
+    });
+</script>
+</body>
+</html>

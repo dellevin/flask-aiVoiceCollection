@@ -1,0 +1,1266 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='font-awesome.css') }}">
+    <title>GPT-SoVITS 配音</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+        }
+        /* 左侧面板 */
+        .left-panel {
+            width: 50%;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid #e8e8e8;
+            background: #fff;
+            height: 100vh;
+            overflow-y: auto;
+        }
+        .left-panel::-webkit-scrollbar { width: 4px; }
+        .left-panel::-webkit-scrollbar-thumb { background: #ddd; border-radius: 2px; }
+        .input-section { padding: 20px 24px 28px; }
+
+        /* 头部 */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 2px;
+        }
+        .header h1 {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1a1a1a;
+            letter-spacing: -0.01em;
+        }
+        .settings-icon {
+            width: 32px; height: 32px;
+            border: none; background: transparent;
+            color: #999; font-size: 15px;
+            cursor: pointer; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.15s;
+        }
+        .settings-icon:hover { background: #f5f5f5; color: #333; }
+        .subtitle { color: #aaa; font-size: 12px; margin-bottom: 16px; }
+
+        /* 分组卡片 */
+        .section-card {
+            background: #fafafa;
+            border: 1px solid #f0f0f0;
+            border-radius: 10px;
+            padding: 14px 16px;
+            margin-bottom: 12px;
+            flex: 1;
+            min-width: 0;
+        }
+        .card-pair {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .card-pair .section-card { margin-bottom: 0; }
+        .section-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .section-title i { font-size: 11px; }
+
+        /* 输入组 */
+        .input-group { margin-bottom: 10px; position: relative; }
+        .input-group:last-child { margin-bottom: 0; }
+        .input-group label {
+            display: block; font-size: 12px; font-weight: 500;
+            margin-bottom: 4px; color: #555;
+        }
+        .input-group .input-wrap { position: relative; }
+        .input-group .input-wrap i {
+            position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+            color: #c0c0c0; font-size: 12px; pointer-events: none;
+        }
+        .input-group input,
+        .input-group select {
+            width: 100%; padding: 7px 10px 7px 32px;
+            border: 1px solid #e0e0e0; border-radius: 6px;
+            background: #fff; color: #333; font-size: 13px;
+            outline: none; transition: all 0.15s ease;
+        }
+        .input-group input::placeholder { color: #c0c0c0; }
+        .input-group input:focus,
+        .input-group select:focus {
+            border-color: #0078d4;
+            box-shadow: 0 0 0 2px rgba(0,120,212,0.06);
+        }
+        .input-group.no-icon input,
+        .input-group.no-icon select { padding-left: 10px; }
+
+        /* textarea */
+        .text-input {
+            width: 100%; padding: 10px 12px;
+            border: 1px solid #e0e0e0; border-radius: 6px;
+            font-size: 13px; outline: none; resize: vertical;
+            min-height: 200px; font-family: inherit; transition: border-color 0.15s;
+        }
+        .text-input:focus { border-color: #0078d4; box-shadow: 0 0 0 2px rgba(0,120,212,0.06); }
+
+        /* 按钮 */
+        .btn {
+            padding: 7px 14px; border: none; border-radius: 6px;
+            font-size: 12px; font-weight: 600; cursor: pointer;
+            transition: all 0.12s ease;
+            display: inline-flex; align-items: center; gap: 5px;
+        }
+        .btn-primary { background: #0078d4; color: #fff; }
+        .btn-primary:hover:not(:disabled) { background: #006cbd; }
+        .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+        .btn-outline { background: #fff; color: #666; border: 1px solid #e0e0e0; }
+        .btn-outline:hover { background: #f5f5f5; color: #333; }
+        .btn-sm { padding: 5px 10px; font-size: 11px; }
+        .btn-block { width: 100%; justify-content: center; }
+        .btn-row { display: flex; gap: 8px; }
+
+        /* 合成按钮 */
+        .synth-btn {
+            width: 100%; padding: 10px 18px;
+            background: linear-gradient(135deg, #0078d4, #005fa3);
+            color: #fff; border: none; border-radius: 8px;
+            font-size: 14px; font-weight: 600;
+            cursor: pointer; transition: all 0.15s ease;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            margin-top: 14px;
+            box-shadow: 0 2px 8px rgba(0,120,212,0.2);
+        }
+        .synth-btn:hover:not(:disabled) {
+            background: linear-gradient(135deg, #006cbd, #004e8a);
+            box-shadow: 0 4px 12px rgba(0,120,212,0.3);
+            transform: translateY(-1px);
+        }
+        .synth-btn:active:not(:disabled) { transform: translateY(0); }
+        .synth-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .spinner-lg {
+            display: inline-block; width: 40px; height: 40px;
+            border: 3px solid #e0e0e0; border-top-color: #0078d4;
+            border-radius: 50%; animation: spin 0.8s linear infinite;
+        }
+
+        /* Checkbox */
+        .checkbox-label {
+            display: flex; align-items: center; gap: 6px;
+            cursor: pointer; font-size: 12px; color: #666;
+        }
+        .checkbox-label input[type="checkbox"] {
+            width: 14px; height: 14px; accent-color: #0078d4;
+            cursor: pointer; margin: 0;
+        }
+
+        /* 滑块 */
+        .slider-group { margin-bottom: 10px; }
+
+        /* 运行状态 */
+        .sovits-status {
+            font-size: 11px; font-weight: 500; margin-left: auto;
+            display: flex; align-items: center; gap: 5px; letter-spacing: 0;
+            text-transform: none;
+        }
+        .status-dot {
+            width: 7px; height: 7px; border-radius: 50%; display: inline-block;
+        }
+        .sovits-running .status-dot { background: #4caf50; box-shadow: 0 0 4px #4caf50; }
+        .sovits-running { color: #4caf50; }
+        .sovits-stopped .status-dot { background: #bbb; }
+        .sovits-stopped { color: #999; }
+        .slider-group label {
+            display: block; font-size: 12px; font-weight: 500;
+            margin-bottom: 4px; color: #555;
+        }
+        .slider-row { display: flex; align-items: center; gap: 10px; }
+        .slider-row input[type="range"] {
+            flex: 1; height: 4px; accent-color: #0078d4; cursor: pointer;
+        }
+        .slider-value {
+            font-size: 12px; font-weight: 600; color: #333;
+            min-width: 36px; text-align: right;
+        }
+
+        /* 帮助按钮 */
+        .help-btn {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 15px; height: 15px; border-radius: 50%;
+            background: #e0e0e0; color: #888; font-size: 10px; font-weight: 700;
+            cursor: pointer; margin-left: 4px; line-height: 1;
+            transition: all 0.15s;
+        }
+        .help-btn:hover { background: #0078d4; color: #fff; }
+        .help-modal { width: 520px; }
+        .help-modal .modal-body { max-height: 60vh; }
+        .help-section { margin-bottom: 14px; }
+        .help-section:last-child { margin-bottom: 0; }
+        .help-section h4 { font-size: 13px; color: #333; margin: 0 0 4px; font-weight: 600; }
+        .help-section p { margin: 0; font-size: 13px; color: #555; line-height: 1.7; }
+
+        /* 模型下拉 */
+        .model-select {
+            width: 100%; padding: 7px 28px 7px 32px;
+            border: 1px solid #e0e0e0; border-radius: 6px;
+            background: #fff; color: #333; font-size: 13px;
+            outline: none; appearance: none; -webkit-appearance: none; -moz-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%23999' d='M5 7L1 3h8z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat; background-position: right 10px center;
+            cursor: pointer; transition: all 0.15s ease; text-overflow: ellipsis;
+        }
+        .model-select:focus { border-color: #0078d4; box-shadow: 0 0 0 2px rgba(0,120,212,0.06); }
+        .model-select option { padding: 6px 8px; font-size: 13px; white-space: normal; word-break: break-all; }
+
+        /* 模型切换标题行 */
+        .section-title-row {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 12px;
+        }
+        .section-title-row .title-left {
+            display: flex; align-items: center; gap: 6px;
+            font-size: 11px; font-weight: 600; color: #999;
+            text-transform: uppercase; letter-spacing: 0.06em;
+        }
+
+        /* 右侧面板 */
+        .right-panel {
+            flex: 1; display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            padding: 40px; position: relative; overflow: hidden;
+            background: #f5f5f5;
+        }
+        .right-panel .placeholder { text-align: center; color: #bbb; }
+        .right-panel .placeholder .placeholder-icon {
+            width: 72px; height: 72px; border-radius: 18px;
+            background: #fff; border: 1px solid #e0e0e0;
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 16px;
+        }
+        .right-panel .placeholder .placeholder-icon i { font-size: 28px; color: #ddd; }
+        .right-panel .placeholder p { font-size: 14px; color: #999; }
+        .right-panel .placeholder .placeholder-hint { font-size: 12px; color: #ccc; margin-top: 4px; }
+
+        /* 音频播放区 */
+        .audio-wrap {
+            width: 100%; max-width: 600px;
+            display: none; flex-direction: column; gap: 14px; align-items: center;
+        }
+        .audio-wrap.show { display: flex; }
+        .audio-player { width: 100%; border-radius: 10px; outline: none; }
+        .audio-meta { text-align: center; font-size: 13px; color: #666; }
+        .audio-meta .meta-label { color: #999; font-size: 11px; }
+        .audio-meta .meta-value { font-weight: 600; color: #333; }
+        .audio-actions { display: flex; gap: 10px; }
+        .audio-actions .btn { font-size: 12px; padding: 7px 14px; }
+
+        /* 设置弹窗 */
+        .modal-overlay {
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.45); z-index: 1000;
+            align-items: center; justify-content: center;
+        }
+        .modal-overlay.show { display: flex; }
+        .modal {
+            background: #fff; border-radius: 12px; width: 480px;
+            max-height: 80vh; overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+        }
+        .modal-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 18px 22px; border-bottom: 1px solid #eee;
+        }
+        .modal-header h2 { font-size: 15px; font-weight: 600; color: #333; }
+        .modal-close {
+            width: 26px; height: 26px; border: none; background: transparent;
+            color: #999; font-size: 18px; cursor: pointer; border-radius: 6px;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .modal-close:hover { background: #f5f5f5; color: #333; }
+        .modal-body { padding: 18px 22px; overflow-y: auto; max-height: calc(80vh - 120px); }
+        .modal-body .section-title { margin-top: 14px; }
+        .modal-body .section-title:first-child { margin-top: 0; }
+        .modal-footer {
+            display: flex; justify-content: flex-end; gap: 10px;
+            padding: 14px 22px; border-top: 1px solid #eee; background: #fafafa;
+        }
+
+        /* Message 弹窗 */
+        .message-container {
+            position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+            z-index: 2000; display: flex; flex-direction: column; gap: 8px;
+        }
+        .message {
+            padding: 10px 16px; border-radius: 8px;
+            font-size: 13px; font-weight: 500;
+            display: flex; align-items: center; gap: 8px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+            animation: slideIn 0.25s ease; min-width: 260px; max-width: 480px;
+        }
+        .message.success { background: #e6f7e9; color: #0a7a1a; border: 1px solid #b3e6c0; }
+        .message.error { background: #fde8e8; color: #c62828; border: 1px solid #f5b3b3; }
+        .message.info { background: #e3f2fd; color: #1565c0; border: 1px solid #b3d9ff; }
+        .message i { font-size: 14px; }
+        .message-close {
+            margin-left: auto; background: none; border: none;
+            color: inherit; cursor: pointer; font-size: 14px;
+            opacity: 0.6; padding: 0 2px;
+        }
+        .message-close:hover { opacity: 1; }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes slideOut { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-8px); } }
+        .message.removing { animation: slideOut 0.2s ease forwards; }
+        @media (max-width: 768px) {
+            body { flex-direction: column; height: auto; overflow: auto; }
+            .left-panel { width: 100% !important; max-width: 100% !important; height: auto; border-right: none; border-bottom: 1px solid #e8e8e8; overflow-y: visible; }
+            .right-panel { height: auto; min-height: 50vh; }
+            .card-pair { flex-direction: column; }
+            .modal { width: 92vw !important; max-height: 90vh; overflow-y: auto; left: 4vw !important; transform: none !important; }
+            .input-section { padding: 14px 16px 20px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="left-panel">
+        <div class="input-section">
+            <div class="header">
+                <h1>GPT-SoVITS 配音</h1>
+                <button class="settings-icon" onclick="openSettings()" title="设置">
+                    <i class="fas fa-wrench"></i>
+                </button>
+            </div>
+            <p class="subtitle">调用 GPT-SoVITS API 进行语音合成</p>
+
+            <!-- Row 1: 模型切换 + 参考音频 -->
+            <div class="card-pair">
+                <div class="section-card">
+                    <div class="input-group no-icon">
+                        <label>快捷切换</label>
+                        <div style="display:flex;gap:6px;">
+                            <select id="quickSwitch" style="flex:1;">
+                                <option value="">选择模型组</option>
+                            </select>
+                            <button class="btn btn-outline btn-sm" onclick="quickSwitchRandom()" style="white-space:nowrap;"><i class="fas fa-refresh"></i> 随机</button>
+                        </div>
+                        <div style="display:flex;gap:6px;margin-top:6px;">
+                            <button class="btn btn-outline btn-sm" onclick="quickSwitchPreset('rich_emotion')" style="flex:1;font-size:11px;">情感更丰富</button>
+                            <button class="btn btn-outline btn-sm" onclick="quickSwitchPreset('stable_pitch')" style="flex:1;font-size:11px;">音准更稳定</button>
+                            <button class="btn btn-outline btn-sm" onclick="quickSwitchPreset('min_gen')" style="flex:1;font-size:11px;">最小泛化</button>
+                            <button class="btn btn-outline btn-sm" onclick="quickSwitchPreset('max_gen')" style="flex:1;font-size:11px;">最大泛化</button>
+                        </div>
+                    </div>
+                    <div class="section-title-row" style="margin-top:8px;">
+                        <span class="title-left"><i class="fas fa-robot"></i> 模型切换</span>
+                        <div style="display:flex;gap:4px;">
+                            <button class="btn btn-outline btn-sm" onclick="switchModel()"><i class="fas fa-refresh"></i> 切换</button>
+                            <button class="btn btn-outline btn-sm" onclick="saveModelSelection()"><i class="fas fa-floppy-disk"></i> 保存</button>
+                        </div>
+                    </div>
+                    <div class="input-group">
+                        <label for="gptModel">GPT 模型</label>
+                        <div class="input-wrap">
+                            <i class="fas fa-robot"></i>
+                            <select id="gptModel" class="model-select">
+                                <option value="">请先配置 GPT 模型文件夹</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="input-group">
+                        <label for="sovitsModel">SoVITS 模型</label>
+                        <div class="input-wrap">
+                            <i class="fas fa-robot"></i>
+                            <select id="sovitsModel" class="model-select">
+                                <option value="">请先配置 SoVITS 模型文件夹</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="section-card">
+                    <div class="section-title-row">
+                        <span class="title-left"><i class="fas fa-play"></i> 参考音频</span>
+                    </div>
+                    <div class="input-group no-icon">
+                        <label>选择音频 <span style="color:#c62828;">*</span></label>
+                        <select id="audioFileSelect">
+                            <option value="">请先在设置中配置音频文件夹并扫描</option>
+                        </select>
+                    </div>
+                    <div class="input-group" style="margin-bottom: 8px;">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="refFree" onchange="toggleRefFree()" checked> 免参考文本模式（仅克隆音色）
+                        </label>
+                    </div>
+                    <div class="input-group" id="promptTextGroup">
+                        <label for="promptText">参考音频文本 <span id="promptTextRequired" style="color:#c62828;">*</span></label>
+                        <div class="input-wrap">
+                            <i class="fas fa-pen"></i>
+                            <input type="text" id="promptText" placeholder="参考音频中说的文字内容">
+                        </div>
+                    </div>
+                    <div class="input-group no-icon">
+                        <label for="promptLang">参考音频语种 <span style="color:#c62828;">*</span></label>
+                        <select id="promptLang">
+                            <option value="zh" selected>中文</option>
+                            <option value="en">英文</option>
+                            <option value="ja">日文</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Row 2: 合成内容 + 推理参数 -->
+            <div class="card-pair">
+                <div class="section-card">
+                    <div class="section-title"><i class="fas fa-pen"></i> 合成内容</div>
+                    <div class="input-group">
+                        <label for="synthText">合成文本</label>
+                        <textarea class="text-input" id="synthText" placeholder="输入要合成语音的文本...">你好，这是一段GPT-SoVITS语音合成测试。</textarea>
+                    </div>
+                    <div class="input-group no-icon">
+                        <label for="textLang">文本语种</label>
+                        <select id="textLang">
+                            <option value="zh" selected>中文</option>
+                            <option value="en">英文</option>
+                            <option value="ja">日文</option>
+                            <option value="auto">多语种混合</option>
+                            <option value="all_zh">纯中文</option>
+                            <option value="all_ja">纯日文</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="section-card">
+                    <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;">
+                        <span><i class="fas fa-sliders"></i> 推理参数</span>
+                        <button class="btn btn-outline btn-sm" onclick="saveInferConfig()"><i class="fas fa-save"></i> 保存</button>
+                    </div>
+                    <div class="input-group no-icon">
+                        <label>怎么切（文本分段方法）</label>
+                        <select id="textSplitMethod">
+                            <option value="cut5" selected>按标点符号切</option>
+                            <option value="cut0">不切</option>
+                            <option value="cut1">凑四句一切</option>
+                            <option value="cut2">凑50字一切</option>
+                            <option value="cut3">按中文句号切</option>
+                            <option value="cut4">按英文句号切</option>
+                        </select>
+                    </div>
+                    <div class="input-group no-icon">
+                        <label>Batch Size <span class="help-btn" onclick="toggleHelp(event)">?</span></label>
+                        <select id="batchSize">
+                            <option value="16">16</option>
+                            <option value="32" selected>32</option>
+                            <option value="64">64</option>
+                            <option value="256">256</option>
+                            <option value="512">512</option>
+                        </select>
+                    </div>
+                    <div class="slider-group">
+                        <label>Top K <span class="help-btn" onclick="toggleHelp(event)">?</span></label>
+                        <div class="slider-row">
+                            <input type="range" id="topK" min="1" max="100" step="1" value="5">
+                            <span class="slider-value" id="topKVal">5</span>
+                        </div>
+                    </div>
+                    <div class="slider-group">
+                        <label>Top P <span class="help-btn" onclick="toggleHelp(event)">?</span></label>
+                        <div class="slider-row">
+                            <input type="range" id="topP" min="0" max="1" step="0.05" value="1">
+                            <span class="slider-value" id="topPVal">1</span>
+                        </div>
+                    </div>
+                    <div class="slider-group">
+                        <label>Temperature <span class="help-btn" onclick="toggleHelp(event)">?</span></label>
+                        <div class="slider-row">
+                            <input type="range" id="temperature" min="0" max="1" step="0.05" value="1">
+                            <span class="slider-value" id="temperatureVal">1</span>
+                        </div>
+                    </div>
+                    <div class="slider-group">
+                        <label>语速 <span class="help-btn" onclick="toggleHelp(event)">?</span></label>
+                        <div class="slider-row">
+                            <input type="range" id="speed" min="0.6" max="1.65" step="0.05" value="1">
+                            <span class="slider-value" id="speedVal">1</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 合成按钮 -->
+            <button class="synth-btn" id="synthBtn" onclick="synthesize()">
+                <i class="fas fa-microphone"></i> 合成语音
+            </button>
+        </div>
+    </div>
+
+    <div class="right-panel">
+        <div id="placeholder" class="placeholder">
+            <div class="placeholder-icon">
+                <i class="fas fa-microphone"></i>
+            </div>
+            <p>合成完成后在此试听音频</p>
+            <p class="placeholder-hint">支持中文、英文、日文</p>
+        </div>
+
+        <div id="synthLoading" class="placeholder" style="display:none;">
+            <div class="spinner-lg"></div>
+            <p style="margin-top:16px;">正在合成语音，请稍候...</p>
+        </div>
+
+        <div id="audioWrap" class="audio-wrap">
+            <audio id="audioPlayer" class="audio-player" controls></audio>
+            <div class="audio-meta" id="audioMeta"></div>
+            <div class="audio-actions">
+                <a id="downloadLink" class="btn btn-outline" href="#" download="synthesis.wav">
+                    <i class="fas fa-file"></i> 下载音频
+                </a>
+                <button class="btn btn-outline" onclick="replayAudio()">
+                    <i class="fas fa-refresh"></i> 重新播放
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 设置弹窗 -->
+    <div class="modal-overlay" id="settingsModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2><i class="fas fa-wrench"></i> 设置</h2>
+                <button class="modal-close" onclick="closeSettings()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="section-title">
+                    <i class="fas fa-folder-open"></i> GPT-SoVITS 路径
+                    <span id="sovitsStatus" class="sovits-status sovits-stopped"><span class="status-dot"></span>未运行</span>
+                </div>
+                <div class="input-group">
+                    <label for="modalSovitsPath">安装路径</label>
+                    <div class="input-wrap">
+                        <i class="fas fa-folder-open"></i>
+                        <input type="text" id="modalSovitsPath" placeholder="例如 E:\AI\GPT-SoVITS-v4">
+                    </div>
+                </div>
+                <div class="input-group" style="margin-bottom: 12px;">
+                    <label for="modalStartCmd">启动命令</label>
+                    <div class="input-wrap">
+                        <i class="fas fa-play"></i>
+                        <input type="text" id="modalStartCmd" placeholder="start api_v2.bat">
+                    </div>
+                </div>
+                <div class="btn-row">
+                    <button class="btn btn-outline btn-sm" onclick="saveSovitsPath()">
+                        <i class="fas fa-check-circle"></i> 保存配置
+                    </button>
+<!--                    <button class="btn btn-outline btn-sm" onclick="checkSovitsStatus()" title="刷新状态">-->
+<!--                        <i class="fas fa-refresh"></i>-->
+<!--                    </button>-->
+                    <button class="btn btn-outline btn-sm" id="btnStartSovits" onclick="startSovitsApi()">
+                        <i class="fas fa-play"></i> 运行
+                    </button>
+                    <button class="btn btn-outline btn-sm" id="btnStopSovits" onclick="stopSovitsApi()" style="display:none;">
+                        <i class="fas fa-times-circle"></i> 停止
+                    </button>
+                </div>
+
+                <div class="section-title"><i class="fas fa-link"></i> 服务配置</div>
+                <div class="input-group">
+                    <label for="modalApiUrl">GPT-SoVITS 服务地址</label>
+                    <div class="input-wrap">
+                        <i class="fas fa-link"></i>
+                        <input type="text" id="modalApiUrl" value="http://127.0.0.1:9880" placeholder="http://127.0.0.1:9880">
+                    </div>
+                </div>
+                <div class="btn-row">
+                    <button class="btn btn-outline btn-sm" onclick="testConnection()">
+                        <i class="fas fa-check-circle"></i> 测试连接
+                    </button>
+                    <button class="btn btn-outline btn-sm" onclick="saveApiUrl()">
+                        <i class="fas fa-save"></i> 保存
+                    </button>
+                </div>
+
+                <div class="section-title"><i class="fas fa-folder"></i> 模型文件夹</div>
+                <div class="input-group">
+                    <label for="modalGptModelDir">GPT 模型文件夹</label>
+                    <div class="input-wrap">
+                        <i class="fas fa-folder-open"></i>
+                        <input type="text" id="modalGptModelDir" placeholder="GPT 模型文件夹路径（含 .ckpt 文件）">
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label for="modalSovitsModelDir">SoVITS 模型文件夹</label>
+                    <div class="input-wrap">
+                        <i class="fas fa-folder-open"></i>
+                        <input type="text" id="modalSovitsModelDir" placeholder="SoVITS 模型文件夹路径（含 .pth 文件）">
+                    </div>
+                </div>
+                <div class="btn-row">
+                    <button class="btn btn-outline btn-sm" onclick="saveModelDirs()">
+                        <i class="fas fa-save"></i> 保存文件夹配置
+                    </button>
+                    <button class="btn btn-outline btn-sm" onclick="refreshModels()">
+                        <i class="fas fa-refresh"></i> 刷新模型列表
+                    </button>
+                </div>
+
+                <div class="section-title"><i class="fas fa-play"></i> 参考音频文件夹</div>
+                <div class="input-group">
+                    <label for="modalAudioFolder">音频文件夹路径</label>
+                    <div class="input-wrap">
+                        <i class="fas fa-folder-open"></i>
+                        <input type="text" id="modalAudioFolder" placeholder="例如 D:\声音素材\参考音频">
+                    </div>
+                </div>
+                <div class="btn-row">
+                    <button class="btn btn-outline btn-sm" onclick="saveAudioFolder()">
+                        <i class="fas fa-save"></i> 保存
+                    </button>
+                    <button class="btn btn-outline btn-sm" onclick="scanFromSettings()">
+                        <i class="fas fa-search"></i> 扫描并刷新
+                    </button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="saveSettings()">保存设置</button>
+                <button class="btn btn-outline" onclick="closeSettings()">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 推理参数说明弹窗 -->
+    <div class="modal-overlay" id="helpModal">
+        <div class="modal help-modal">
+            <div class="modal-header">
+                <h2><i class="fas fa-info-circle"></i> 推理参数说明</h2>
+                <button class="modal-close" onclick="closeHelp()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="help-section">
+                    <h4>Batch Size — 批处理大小</h4>
+                    <p>每批同时处理的文本分段数量。值越大合成速度越快，但显存占用越高。显存不足时应降低此值。</p>
+                </div>
+                <div class="help-section">
+                    <h4>Top K — 按候选数量截断</h4>
+                    <p>每一步生成时，只保留概率最高的 K 个候选，其余全部丢弃。K=5 表示只在最可能的 5 个选项里选。值越小语音越稳定但可能单调，值越大越自然但可能不稳定。</p>
+                </div>
+                <div class="help-section">
+                    <h4>Top P — 按累积概率截断</h4>
+                    <p>把候选按概率从高到低排列，累加到概率总和刚好超过 P 时截断。P=1.0 保留所有候选，P=0.6 只保留累积概率 60% 的候选。候选池大小是动态的，取决于模型的确定程度。</p>
+                </div>
+                <div class="help-section">
+                    <h4>Temperature — 温度</h4>
+                    <p>控制生成的随机程度。值越低（如 0.3）输出越确定、越保守；值越高（如 1.0）输出越随机、越多样。过高可能导致发音不自然。</p>
+                </div>
+                <div class="help-section">
+                    <h4>语速 — Speed</h4>
+                    <p>控制合成语音的播放速度。1.0 为正常语速，低于 1.0 变慢，高于 1.0 变快。范围 0.6 ~ 1.65。</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Message 容器 -->
+    <div class="message-container" id="messageContainer"></div>
+
+    <script>
+        var placeholder = document.getElementById('placeholder');
+        var audioWrap = document.getElementById('audioWrap');
+        var audioPlayer = document.getElementById('audioPlayer');
+        var audioMeta = document.getElementById('audioMeta');
+        var downloadLink = document.getElementById('downloadLink');
+        var synthBtn = document.getElementById('synthBtn');
+        var messageContainer = document.getElementById('messageContainer');
+        var apiUrlValue = 'http://127.0.0.1:9880';
+
+        // 滑块实时显示
+        [['topK','topKVal'],['topP','topPVal'],['temperature','temperatureVal'],['speed','speedVal']].forEach(function(pair) {
+            var slider = document.getElementById(pair[0]);
+            var val = document.getElementById(pair[1]);
+            slider.addEventListener('input', function() { val.textContent = slider.value; });
+        });
+
+        // 帮助弹窗
+        function toggleHelp(e) {
+            e.stopPropagation();
+            document.getElementById('helpModal').classList.add('show');
+        }
+        function closeHelp() {
+            document.getElementById('helpModal').classList.remove('show');
+        }
+
+        // Message 弹窗
+        function showMessage(text, type, duration) {
+            duration = duration || 3000;
+            var icons = { success: 'fa-check-circle', error: 'fa-times-circle', info: 'fa-info-circle' };
+            var message = document.createElement('div');
+            message.className = 'message ' + type;
+            message.innerHTML = '<i class="fas ' + (icons[type] || '') + '"></i> ' +
+                '<span>' + text + '</span>' +
+                '<button class="message-close" onclick="closeMessage(this)">&times;</button>';
+            messageContainer.appendChild(message);
+            if (duration > 0) {
+                setTimeout(function() { removeMessage(message); }, duration);
+            }
+        }
+        function closeMessage(btn) { removeMessage(btn.closest('.message')); }
+        function removeMessage(message) {
+            if (!message || message.classList.contains('removing')) return;
+            message.classList.add('removing');
+            setTimeout(function() { if (message.parentNode) message.parentNode.removeChild(message); }, 200);
+        }
+
+        // 设置弹窗
+        function openSettings() {
+            document.getElementById('settingsModal').classList.add('show');
+            loadSettings();
+        }
+        function closeSettings() {
+            document.getElementById('settingsModal').classList.remove('show');
+        }
+
+        async function loadSettings() {
+            try {
+                var res = await fetch('/sovits-tts/config');
+                var cfg = await res.json();
+                if (cfg.api_url) document.getElementById('modalApiUrl').value = cfg.api_url;
+                if (cfg.sovits_path) document.getElementById('modalSovitsPath').value = cfg.sovits_path;
+                if (cfg.start_cmd) document.getElementById('modalStartCmd').value = cfg.start_cmd;
+                if (cfg.gpt_model_dir) document.getElementById('modalGptModelDir').value = cfg.gpt_model_dir;
+                if (cfg.sovits_model_dir) document.getElementById('modalSovitsModelDir').value = cfg.sovits_model_dir;
+                if (cfg.refer_audio_folder) document.getElementById('modalAudioFolder').value = cfg.refer_audio_folder;
+            } catch (e) { showMessage('加载配置失败: ' + e.message, 'error'); }
+            checkSovitsStatus();
+        }
+
+        function fillModelSelect(selectId, models, lastSelected) {
+            var sel = document.getElementById(selectId);
+            sel.innerHTML = '';
+            if (!models.length) {
+                sel.innerHTML = '<option value="">未找到模型文件</option>';
+                return;
+            }
+            models.forEach(function(m) {
+                var fullName = m.split('\\').pop().split('/').pop();
+                var name = fullName.replace(/\.(ckpt|pth)$/i, '');
+                var opt = document.createElement('option');
+                opt.value = m;
+                opt.textContent = name;
+                opt.title = m;
+                if (m === lastSelected) opt.selected = true;
+                sel.appendChild(opt);
+            });
+        }
+
+        function extractGroup(text) {
+            var m = text.match(/^([^-_]+)[-]/);
+            if (!m) m = text.match(/^([^-_]+)[_]/);
+            if (m) { var g = m[1].trim(); return g.length > 0 ? g : null; }
+            return null;
+        }
+
+        function extractES(text) {
+            var em = text.match(/e(\d+)/i);
+            var sm = text.match(/s(\d+)/i);
+            return { e: em ? parseInt(em[1]) : null, s: sm ? parseInt(sm[1]) : null };
+        }
+
+        function matchGroup(optText, grp) {
+            return optText.indexOf(grp + '-') === 0 || optText.indexOf(grp + '_') === 0 || optText === grp;
+        }
+
+        function collectGroupOptions(sel, group) {
+            var arr = [];
+            for (var i = 0; i < sel.options.length; i++) {
+                var text = sel.options[i].textContent;
+                if (!matchGroup(text, group)) continue;
+                var es = extractES(text);
+                arr.push({ value: sel.options[i].value, text: text, e: es.e, s: es.s });
+            }
+            return arr;
+        }
+
+        function populateQuickSwitch() {
+            var gptSel = document.getElementById('gptModel');
+            var sovSel = document.getElementById('sovitsModel');
+            var groups = {};
+
+            for (var i = 0; i < gptSel.options.length; i++) {
+                var g = extractGroup(gptSel.options[i].textContent);
+                if (g) groups[g] = (groups[g] || 0) | 1;
+            }
+            for (var i = 0; i < sovSel.options.length; i++) {
+                var g = extractGroup(sovSel.options[i].textContent);
+                if (g) groups[g] = (groups[g] || 0) | 2;
+            }
+
+            var common = Object.keys(groups).filter(function(k) { return groups[k] === 3; });
+            common.sort();
+
+            var qs = document.getElementById('quickSwitch');
+            qs.innerHTML = '<option value="">选择模型组</option>';
+            common.forEach(function(g) {
+                var opt = document.createElement('option');
+                opt.value = g;
+                opt.textContent = g;
+                qs.appendChild(opt);
+            });
+        }
+
+        function quickSwitchRandom() {
+            var group = document.getElementById('quickSwitch').value;
+            if (!group) { showMessage('请先选择一个模型组', 'error'); return; }
+
+            var gptSel = document.getElementById('gptModel');
+            var sovSel = document.getElementById('sovitsModel');
+            var gptOpts = collectGroupOptions(gptSel, group);
+            var sovOpts = collectGroupOptions(sovSel, group);
+
+            if (gptOpts.length) gptSel.value = gptOpts[Math.floor(Math.random() * gptOpts.length)].value;
+            if (sovOpts.length) sovSel.value = sovOpts[Math.floor(Math.random() * sovOpts.length)].value;
+
+            switchModel();
+        }
+
+        function quickSwitchPreset(type) {
+            var group = document.getElementById('quickSwitch').value;
+            if (!group) { showMessage('请先选择一个模型组', 'error'); return; }
+
+            var gptSel = document.getElementById('gptModel');
+            var sovSel = document.getElementById('sovitsModel');
+            var gptOpts = collectGroupOptions(gptSel, group);
+            var sovOpts = collectGroupOptions(sovSel, group);
+
+            if (type === 'rich_emotion') {
+                // e:12~15, s:100~200
+                var gm = gptOpts.filter(function(o) { return o.e != null && o.e >= 12 && o.e <= 15; });
+                var sm = sovOpts.filter(function(o) { return o.e != null && o.e >= 12 && o.e <= 15 && (o.s == null || (o.s >= 100 && o.s <= 200)); });
+                if (!gm.length) gm = gptOpts; if (!sm.length) sm = sovOpts;
+                if (gm.length) gptSel.value = gm[Math.floor(Math.random() * gm.length)].value;
+                if (sm.length) sovSel.value = sm[Math.floor(Math.random() * sm.length)].value;
+            } else if (type === 'stable_pitch') {
+                // e:8~10, s:100~200
+                var gm = gptOpts.filter(function(o) { return o.e != null && o.e >= 8 && o.e <= 10; });
+                var sm = sovOpts.filter(function(o) { return o.e != null && o.e >= 8 && o.e <= 10 && (o.s == null || (o.s >= 100 && o.s <= 200)); });
+                if (!gm.length) gm = gptOpts; if (!sm.length) sm = sovOpts;
+                if (gm.length) gptSel.value = gm[Math.floor(Math.random() * gm.length)].value;
+                if (sm.length) sovSel.value = sm[Math.floor(Math.random() * sm.length)].value;
+            } else if (type === 'min_gen') {
+                // e 最小，s 最小
+                var gm = gptOpts.filter(function(o) { return o.e != null; }).sort(function(a, b) { return a.e - b.e; });
+                var sm = sovOpts.filter(function(o) { return o.e != null; }).sort(function(a, b) { return a.e - b.e || (a.s || 0) - (b.s || 0); });
+                if (gm.length) gptSel.value = gm[0].value;
+                if (sm.length) sovSel.value = sm[0].value;
+            } else if (type === 'max_gen') {
+                // e 最大，s 最大
+                var gm = gptOpts.filter(function(o) { return o.e != null; }).sort(function(a, b) { return b.e - a.e; });
+                var sm = sovOpts.filter(function(o) { return o.e != null; }).sort(function(a, b) { return b.e - a.e || (b.s || 0) - (a.s || 0); });
+                if (gm.length) gptSel.value = gm[0].value;
+                if (sm.length) sovSel.value = sm[0].value;
+            }
+
+            switchModel();
+        }
+
+        async function saveSettings() {
+            var apiUrl = document.getElementById('modalApiUrl').value.trim();
+            var gptDir = document.getElementById('modalGptModelDir').value.trim();
+            var sovitsDir = document.getElementById('modalSovitsModelDir').value.trim();
+            try {
+                await fetch('/sovits-tts/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ api_url: apiUrl, gpt_model_dir: gptDir, sovits_model_dir: sovitsDir })
+                });
+                showMessage('设置已保存', 'success');
+                closeSettings();
+                loadMainConfig();
+            } catch (e) { showMessage('保存失败: ' + e.message, 'error'); }
+        }
+
+        async function saveApiUrl() {
+            var apiUrl = document.getElementById('modalApiUrl').value.trim();
+            if (!apiUrl) { showMessage('请填写服务地址', 'error'); return; }
+            try {
+                await fetch('/sovits-tts/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ api_url: apiUrl })
+                });
+                showMessage('服务地址已保存', 'success');
+                loadMainConfig();
+            } catch (e) { showMessage('保存失败: ' + e.message, 'error'); }
+        }
+
+        async function testConnection() {
+            var url = document.getElementById('modalApiUrl').value.trim().replace(/\/+$/, '');
+            if (!url) { showMessage('请填写服务地址', 'error'); return; }
+            try {
+                var res = await fetch('/sovits-tts/test-connection', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ api_url: url })
+                });
+                var data = await res.json();
+                showMessage(data.success ? data.message : data.error, data.success ? 'success' : 'error');
+            } catch (e) { showMessage('请求失败: ' + e.message, 'error'); }
+        }
+
+        async function saveModelDirs() {
+            var gptDir = document.getElementById('modalGptModelDir').value.trim();
+            var sovitsDir = document.getElementById('modalSovitsModelDir').value.trim();
+            await fetch('/sovits-tts/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ gpt_model_dir: gptDir, sovits_model_dir: sovitsDir })
+            });
+            showMessage('文件夹配置已保存', 'success');
+            refreshModels();
+        }
+
+        async function refreshModels() {
+            try {
+                var res = await fetch('/sovits-tts/config');
+                var cfg = await res.json();
+                fillModelSelect('gptModel', cfg.gpt_models || [], cfg.last_gpt_model);
+                fillModelSelect('sovitsModel', cfg.sovits_models || [], cfg.last_sovits_model);
+                populateQuickSwitch();
+                showMessage('模型列表已刷新', 'success');
+            } catch (e) { showMessage('刷新失败: ' + e.message, 'error'); }
+        }
+
+        async function switchModel() {
+            var url = getApiUrl();
+            var gpt = document.getElementById('gptModel').value;
+            var sovits = document.getElementById('sovitsModel').value;
+            if (!url) { showMessage('请先在设置中配置服务地址', 'error'); return; }
+            if (!gpt && !sovits) { showMessage('请至少选择一个模型', 'error'); return; }
+
+            if (gpt) {
+                try {
+                    var res = await fetch('/sovits-tts/set-gpt-model', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ api_url: url, weights_path: gpt })
+                    });
+                    var data = await res.json();
+                    if (data.success) {
+                        showMessage(data.message, 'success');
+                        fetch('/sovits-tts/config', {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ last_gpt_model: gpt })
+                        });
+                    } else { showMessage(data.error, 'error'); }
+                } catch (e) { showMessage('GPT 模型切换失败: ' + e.message, 'error'); }
+            }
+
+            if (sovits) {
+                try {
+                    var res = await fetch('/sovits-tts/set-sovits-model', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ api_url: url, weights_path: sovits })
+                    });
+                    var data = await res.json();
+                    if (data.success) {
+                        showMessage(data.message, 'success');
+                        fetch('/sovits-tts/config', {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ last_sovits_model: sovits })
+                        });
+                    } else { showMessage(data.error, 'error'); }
+                } catch (e) { showMessage('SoVITS 模型切换失败: ' + e.message, 'error'); }
+            }
+        }
+
+        async function saveModelSelection() {
+            var gpt = document.getElementById('gptModel').value;
+            var sovits = document.getElementById('sovitsModel').value;
+            if (!gpt && !sovits) { showMessage('请至少选择一个模型', 'error'); return; }
+            try {
+                await fetch('/sovits-tts/config', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ last_gpt_model: gpt, last_sovits_model: sovits })
+                });
+                showMessage('模型选择已保存', 'success');
+            } catch (e) { showMessage('保存失败: ' + e.message, 'error'); }
+        }
+
+        async function synthesize() {
+            var url = getApiUrl();
+            var text = document.getElementById('synthText').value.trim();
+            var lang = document.getElementById('textLang').value;
+            var referPath = document.getElementById('audioFileSelect').value;
+            var promptLang = document.getElementById('promptLang').value;
+            var isRefFree = document.getElementById('refFree').checked;
+            var promptText = isRefFree ? '' : document.getElementById('promptText').value.trim();
+
+            if (!url) { showMessage('请先在设置中配置服务地址', 'error'); return; }
+            if (!text) { showMessage('请输入合成文本', 'error'); return; }
+            if (!referPath) { showMessage('请填写参考音频路径', 'error'); return; }
+            if (!isRefFree && !promptText) { showMessage('请填写参考音频文本或勾选免参考文本模式', 'error'); return; }
+
+            synthBtn.disabled = true;
+            synthBtn.innerHTML = '<span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 0.8s linear infinite;"></span> 合成中...';
+            placeholder.style.display = 'none';
+            audioWrap.classList.remove('show');
+            document.getElementById('synthLoading').style.display = '';
+            showMessage('正在切换模型...', 'info', 0);
+
+            var gpt = document.getElementById('gptModel').value;
+            var sovits = document.getElementById('sovitsModel').value;
+            if (gpt) {
+                try {
+                    var res = await fetch('/sovits-tts/set-gpt-model', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ api_url: url, weights_path: gpt })
+                    });
+                    var data = await res.json();
+                    if (!data.success) { showMessage('GPT 模型切换失败: ' + data.error, 'error'); synthBtn.disabled = false; return; }
+                } catch (e) { showMessage('GPT 模型切换失败: ' + e.message, 'error'); synthBtn.disabled = false; return; }
+            }
+            if (sovits) {
+                try {
+                    var res = await fetch('/sovits-tts/set-sovits-model', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ api_url: url, weights_path: sovits })
+                    });
+                    var data = await res.json();
+                    if (!data.success) { showMessage('SoVITS 模型切换失败: ' + data.error, 'error'); synthBtn.disabled = false; return; }
+                } catch (e) { showMessage('SoVITS 模型切换失败: ' + e.message, 'error'); synthBtn.disabled = false; return; }
+            }
+
+            showMessage('正在合成语音，请稍候...', 'info', 0);
+            var startTime = Date.now();
+            var payload = {
+                api_url: url, text: text, text_lang: lang,
+                ref_audio_path: referPath, prompt_text: promptText,
+                prompt_lang: promptLang || 'zh',
+                text_split_method: document.getElementById('textSplitMethod').value,
+                batch_size: parseInt(document.getElementById('batchSize').value) || 32,
+                top_k: parseInt(document.getElementById('topK').value) || 5,
+                top_p: parseFloat(document.getElementById('topP').value),
+                temperature: parseFloat(document.getElementById('temperature').value),
+                speed_factor: parseFloat(document.getElementById('speed').value),
+                seed: -1
+            };
+            saveInferConfig();
+
+            try {
+                var res = await fetch('/sovits-tts/synthesize', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                var elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+                var contentType = res.headers.get('Content-Type') || '';
+
+                if (res.ok && contentType.indexOf('audio') !== -1) {
+                    var blob = await res.blob();
+                    var audioUrl = URL.createObjectURL(blob);
+                    placeholder.style.display = 'none';
+                    document.getElementById('synthLoading').style.display = 'none';
+                    audioWrap.classList.add('show');
+                    audioPlayer.src = audioUrl;
+                    downloadLink.href = audioUrl;
+                    var safeName = text.replace(/[\r\n]/g, '').substring(0, 10).replace(/[\\/:*?"<>|]/g, '_');
+                    var timestamp = new Date().toISOString().replace(/[-:T]/g, '').substring(0, 14);
+                    downloadLink.download = safeName + '_' + timestamp + '.wav';
+
+                    var sizeKB = (blob.size / 1024).toFixed(1);
+                    audioMeta.innerHTML = '<span class="meta-label">耗时</span> <span class="meta-value">' + elapsed + 's</span>'
+                        + ' &nbsp;|&nbsp; '
+                        + '<span class="meta-label">大小</span> <span class="meta-value">' + sizeKB + ' KB</span>';
+                    showMessage('合成完成，耗时 ' + elapsed + ' 秒', 'success');
+                } else {
+                    var data = await res.json();
+                    showMessage(data.error || '合成失败', 'error');
+                }
+            } catch (e) {
+                showMessage('请求失败: ' + e.message, 'error');
+            } finally {
+                synthBtn.disabled = false;
+                synthBtn.innerHTML = '<i class="fas fa-microphone"></i> 合成语音';
+                document.getElementById('synthLoading').style.display = 'none';
+            }
+        }
+
+        function replayAudio() { audioPlayer.currentTime = 0; audioPlayer.play(); }
+
+        function toggleRefFree() {
+            var checked = document.getElementById('refFree').checked;
+            document.getElementById('promptTextGroup').style.display = checked ? 'none' : '';
+            document.getElementById('promptTextRequired').style.display = checked ? 'none' : '';
+        }
+
+        // 参考音频 — 文件夹扫描 + 下拉选择
+        var scannedFiles = [];
+
+        async function scanAudioFiles(folder) {
+            if (!folder) return;
+            try {
+                var res = await fetch('/sovits-tts/scan-audio-folder', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ folder: folder })
+                });
+                var data = await res.json();
+                if (data.success) {
+                    scannedFiles = data.files || [];
+                    renderAudioDropdown();
+                    return data.count;
+                }
+            } catch (e) {}
+            return 0;
+        }
+
+        function renderAudioDropdown() {
+            var sel = document.getElementById('audioFileSelect');
+            if (!scannedFiles.length) {
+                sel.innerHTML = '<option value="">未找到音频文件</option>';
+                return;
+            }
+            var html = '<option value="">请选择参考音频（3~10秒）</option>';
+            scannedFiles.forEach(function(f) {
+                var name = f.split(/[/\\]/).pop();
+                html += '<option value="' + f.replace(/"/g, '&quot;') + '">' + name + '</option>';
+            });
+            sel.innerHTML = html;
+        }
+
+        function saveAudioFolder() {
+            var folder = document.getElementById('modalAudioFolder').value.trim();
+            fetch('/sovits-tts/config', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ refer_audio_folder: folder })
+            }).then(function() { showMessage('已保存', 'success'); });
+        }
+
+        async function scanFromSettings() {
+            var folder = document.getElementById('modalAudioFolder').value.trim();
+            if (!folder) { showMessage('请输入音频文件夹路径', 'error'); return; }
+            var count = await scanAudioFiles(folder);
+            if (count > 0) showMessage('扫描到 ' + count + ' 个音频文件');
+            else showMessage('未找到音频文件', 'error');
+        }
+
+        function saveInferConfig() {
+            fetch('/sovits-tts/config', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    top_k: parseInt(document.getElementById('topK').value),
+                    top_p: parseFloat(document.getElementById('topP').value),
+                    temperature: parseFloat(document.getElementById('temperature').value),
+                    batch_size: parseInt(document.getElementById('batchSize').value),
+                    speed: parseFloat(document.getElementById('speed').value),
+                    text_split_method: document.getElementById('textSplitMethod').value
+                })
+            }).then(function() { showMessage('参数已保存', 'success'); });
+        }
+
+        function getApiUrl() { return apiUrlValue.replace(/\/+$/, ''); }
+
+        async function loadMainConfig() {
+            try {
+                var res = await fetch('/sovits-tts/config');
+                var cfg = await res.json();
+                if (cfg.api_url) apiUrlValue = cfg.api_url;
+                fillModelSelect('gptModel', cfg.gpt_models || [], cfg.last_gpt_model);
+                fillModelSelect('sovitsModel', cfg.sovits_models || [], cfg.last_sovits_model);
+                if (cfg.refer_audio_folder) scanAudioFiles(cfg.refer_audio_folder);
+                if (cfg.top_k != null) { document.getElementById('topK').value = cfg.top_k; document.getElementById('topKVal').textContent = cfg.top_k; }
+                if (cfg.top_p != null) { document.getElementById('topP').value = cfg.top_p; document.getElementById('topPVal').textContent = cfg.top_p; }
+                if (cfg.temperature != null) { document.getElementById('temperature').value = cfg.temperature; document.getElementById('temperatureVal').textContent = cfg.temperature; }
+                if (cfg.batch_size != null) document.getElementById('batchSize').value = cfg.batch_size;
+                if (cfg.speed != null) { document.getElementById('speed').value = cfg.speed; document.getElementById('speedVal').textContent = cfg.speed; }
+                if (cfg.text_split_method) document.getElementById('textSplitMethod').value = cfg.text_split_method;
+                populateQuickSwitch();
+            } catch (e) {}
+        }
+
+        // Ctrl+Enter 合成
+        document.getElementById('synthText').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) synthesize();
+        });
+
+
+        loadMainConfig();
+
+        async function saveSovitsPath() {
+            var sovitsPath = document.getElementById('modalSovitsPath').value.trim();
+            var startCmd = document.getElementById('modalStartCmd').value.trim();
+            if (!sovitsPath) { showMessage('请填写 GPT-SoVITS 路径', 'error'); return; }
+            try {
+                await fetch('/sovits-tts/config', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sovits_path: sovitsPath, start_cmd: startCmd })
+                });
+                showMessage('已保存', 'success');
+            } catch (e) { showMessage('保存失败: ' + e.message, 'error'); }
+        }
+
+        async function startSovitsApi() {
+            var sovitsPath = document.getElementById('modalSovitsPath').value.trim();
+            if (!sovitsPath) { showMessage('请先填写 GPT-SoVITS 路径', 'error'); return; }
+            try {
+                var res = await fetch('/sovits-tts/run', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+                var data = await res.json();
+                if (data.success) {
+                    showMessage(data.message, 'success');
+                    setTimeout(checkSovitsStatus, 3000);
+                } else {
+                    showMessage(data.error, 'error');
+                }
+            } catch (e) { showMessage('启动失败: ' + e.message, 'error'); }
+        }
+
+        async function stopSovitsApi() {
+            try {
+                var res = await fetch('/sovits-tts/kill', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+                var data = await res.json();
+                showMessage(data.message, 'success');
+                updateSovitsStatus(false);
+            } catch (e) { showMessage('停止失败: ' + e.message, 'error'); }
+        }
+
+        async function checkSovitsStatus() {
+            try {
+                var res = await fetch('/sovits-tts/status');
+                var data = await res.json();
+                updateSovitsStatus(data.running, data.message);
+            } catch (e) { updateSovitsStatus(false); }
+        }
+
+        function updateSovitsStatus(running, msg) {
+            var el = document.getElementById('sovitsStatus');
+            var btnStart = document.getElementById('btnStartSovits');
+            var btnStop = document.getElementById('btnStopSovits');
+            if (running) {
+                el.className = 'sovits-status sovits-running';
+                el.innerHTML = '<span class="status-dot"></span>' + (msg || '运行中');
+                btnStart.style.display = 'none';
+                btnStop.style.display = '';
+            } else {
+                el.className = 'sovits-status sovits-stopped';
+                el.innerHTML = '<span class="status-dot"></span>未运行';
+                btnStart.style.display = '';
+                btnStop.style.display = 'none';
+            }
+        }
+
+        toggleRefFree();
+    </script>
+</body>
+</html>

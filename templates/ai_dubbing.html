@@ -1,0 +1,1276 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='font-awesome.css') }}">
+    <title>GPT-SoVITS 配音（引擎版）</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #f5f5f5; color: #333; height: 100vh; overflow: hidden; display: flex;
+        }
+        .left-panel {
+            width: 50%; flex-shrink: 0; display: flex; flex-direction: column;
+            border-right: 1px solid #e8e8e8; background: #fff; height: 100vh; overflow-y: auto;
+        }
+        .left-panel::-webkit-scrollbar { width: 4px; }
+        .left-panel::-webkit-scrollbar-thumb { background: #ddd; border-radius: 2px; }
+        .input-section { padding: 20px 24px 28px; }
+
+        .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px; }
+        .header h1 { font-size: 18px; font-weight: 700; color: #1a1a1a; letter-spacing: -0.01em; }
+        .settings-icon {
+            width: 32px; height: 32px; border: none; background: transparent;
+            color: #999; font-size: 15px; cursor: pointer; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center; transition: all 0.15s;
+        }
+        .settings-icon:hover { background: #f5f5f5; color: #333; }
+        .subtitle { color: #aaa; font-size: 12px; margin-bottom: 16px; }
+
+        .section-card {
+            background: #fafafa; border: 1px solid #f0f0f0; border-radius: 10px;
+            padding: 14px 16px; margin-bottom: 12px; flex: 1; min-width: 0;
+        }
+        .card-pair { display: flex; gap: 8px; margin-bottom: 8px; }
+        .card-pair .section-card { margin-bottom: 0; }
+        .section-title {
+            font-size: 11px; font-weight: 600; color: #999; text-transform: uppercase;
+            letter-spacing: 0.06em; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;
+        }
+        .section-title i { font-size: 11px; }
+
+        .input-group { margin-bottom: 10px; position: relative; }
+        .input-group:last-child { margin-bottom: 0; }
+        .input-group label { display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #555; }
+        .input-group .input-wrap { position: relative; }
+        .input-group .input-wrap i {
+            position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+            color: #c0c0c0; font-size: 12px; pointer-events: none;
+        }
+        .input-group input, .input-group select {
+            width: 100%; padding: 7px 10px 7px 32px;
+            border: 1px solid #e0e0e0; border-radius: 6px;
+            background: #fff; color: #333; font-size: 13px;
+            outline: none; transition: all 0.15s ease;
+        }
+        .input-group input::placeholder { color: #c0c0c0; }
+        .input-group input:focus, .input-group select:focus {
+            border-color: #0078d4; box-shadow: 0 0 0 2px rgba(0,120,212,0.06);
+        }
+        .input-group.no-icon input, .input-group.no-icon select { padding-left: 10px; }
+        .path-row { display: flex; gap: 6px; align-items: flex-end; }
+        .path-row select { width: 90px; flex-shrink: 0; padding: 7px 6px; font-size: 12px; }
+        .path-row input { flex: 1; padding-left: 10px !important; }
+
+        .text-input {
+            width: 100%; padding: 10px 12px; border: 1px solid #e0e0e0; border-radius: 6px;
+            font-size: 13px; outline: none; resize: vertical; min-height: 120px;
+            font-family: inherit; transition: border-color 0.15s;
+        }
+        .text-input:focus { border-color: #0078d4; box-shadow: 0 0 0 2px rgba(0,120,212,0.06); }
+
+        .btn {
+            padding: 7px 14px; border: none; border-radius: 6px; font-size: 12px;
+            font-weight: 600; cursor: pointer; transition: all 0.12s ease;
+            display: inline-flex; align-items: center; gap: 5px;
+        }
+        .btn-primary { background: #0078d4; color: #fff; }
+        .btn-primary:hover:not(:disabled) { background: #006cbd; }
+        .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+        .btn-outline { background: #fff; color: #666; border: 1px solid #e0e0e0; }
+        .btn-outline:hover { background: #f5f5f5; color: #333; }
+        .btn-sm { padding: 5px 10px; font-size: 11px; }
+        .btn-block { width: 100%; justify-content: center; }
+        .btn-row { display: flex; gap: 8px; }
+
+        .synth-btn {
+            width: 100%; padding: 10px 18px;
+            background: linear-gradient(135deg, #0078d4, #005fa3);
+            color: #fff; border: none; border-radius: 8px;
+            font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.15s ease;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            margin-top: 14px; box-shadow: 0 2px 8px rgba(0,120,212,0.2);
+        }
+        .synth-btn:hover:not(:disabled) {
+            background: linear-gradient(135deg, #006cbd, #004e8a);
+            box-shadow: 0 4px 12px rgba(0,120,212,0.3); transform: translateY(-1px);
+        }
+        .synth-btn:active:not(:disabled) { transform: translateY(0); }
+        .synth-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .spinner-lg {
+            display: inline-block; width: 40px; height: 40px;
+            border: 3px solid #e0e0e0; border-top-color: #0078d4;
+            border-radius: 50%; animation: spin 0.8s linear infinite;
+        }
+
+        .slider-group { margin-bottom: 10px; }
+        .slider-group label { display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #555; }
+        .slider-row { display: flex; align-items: center; gap: 10px; }
+        .slider-row input[type="range"] { flex: 1; height: 4px; accent-color: #0078d4; cursor: pointer; }
+        .slider-value { font-size: 12px; font-weight: 600; color: #333; min-width: 36px; text-align: right; }
+
+        /* Checkbox */
+        .checkbox-label {
+            display: flex; align-items: center; gap: 6px;
+            cursor: pointer; font-size: 12px; color: #666;
+        }
+        .checkbox-label input[type="checkbox"] {
+            width: 14px; height: 14px; accent-color: #0078d4;
+            cursor: pointer; margin: 0;
+        }
+
+        /* 引擎状态 */
+        .engine-status {
+            font-size: 11px; font-weight: 500; margin-left: auto;
+            display: flex; align-items: center; gap: 5px; letter-spacing: 0; text-transform: none;
+        }
+        .status-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+        .engine-ready .status-dot { background: #4caf50; box-shadow: 0 0 4px #4caf50; }
+        .engine-ready { color: #4caf50; }
+        .engine-loading .status-dot { background: #ff9800; box-shadow: 0 0 4px #ff9800; }
+        .engine-loading { color: #ff9800; }
+        .engine-error .status-dot { background: #f44336; box-shadow: 0 0 4px #f44336; }
+        .engine-error { color: #f44336; }
+        .engine-stopped .status-dot { background: #bbb; }
+        .engine-stopped { color: #999; }
+
+        /* 模型下拉 */
+        .model-select {
+            width: 100%; padding: 7px 28px 7px 32px;
+            border: 1px solid #e0e0e0; border-radius: 6px;
+            background: #fff; color: #333; font-size: 13px;
+            outline: none; appearance: none; -webkit-appearance: none; -moz-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%23999' d='M5 7L1 3h8z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat; background-position: right 10px center;
+            cursor: pointer; transition: all 0.15s ease; text-overflow: ellipsis;
+        }
+        .model-select:focus { border-color: #0078d4; box-shadow: 0 0 0 2px rgba(0,120,212,0.06); }
+        .model-select option { padding: 6px 8px; font-size: 13px; white-space: normal; word-break: break-all; }
+
+        .section-title-row {
+            display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;
+        }
+        .section-title-row .title-left {
+            display: flex; align-items: center; gap: 6px;
+            font-size: 11px; font-weight: 600; color: #999;
+            text-transform: uppercase; letter-spacing: 0.06em;
+        }
+
+        /* 右侧面板 */
+        .right-panel {
+            flex: 1; display: flex; flex-direction: column;
+            position: relative; overflow: hidden; background: #f5f5f5;
+        }
+        .right-panel .right-content {
+            flex: 1; display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            padding: 40px; overflow: hidden; min-height: 0;
+        }
+        .right-panel .placeholder { text-align: center; color: #bbb; }
+        .right-panel .placeholder .placeholder-icon {
+            width: 72px; height: 72px; border-radius: 18px; background: #fff;
+            border: 1px solid #e0e0e0; display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 16px;
+        }
+        .right-panel .placeholder .placeholder-icon i { font-size: 28px; color: #ddd; }
+        .right-panel .placeholder p { font-size: 14px; color: #999; }
+        .right-panel .placeholder .placeholder-hint { font-size: 12px; color: #ccc; margin-top: 4px; }
+
+        .audio-wrap {
+            width: 100%; max-width: 600px;
+            display: none; flex-direction: column; gap: 14px; align-items: center;
+        }
+        .audio-wrap.show { display: flex; }
+        .audio-player { width: 100%; border-radius: 10px; outline: none; }
+        .audio-meta { text-align: center; font-size: 13px; color: #666; }
+        .audio-meta .meta-label { color: #999; font-size: 11px; }
+        .audio-meta .meta-value { font-weight: 600; color: #333; }
+        .audio-actions { display: flex; gap: 10px; }
+        .audio-actions .btn { font-size: 12px; padding: 7px 14px; }
+
+        /* 设置弹窗 */
+        .modal-overlay {
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.45); z-index: 1000;
+            align-items: center; justify-content: center;
+        }
+        .modal-overlay.show { display: flex; }
+        .modal {
+            background: #fff; border-radius: 12px; width: 480px;
+            max-height: 80vh; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+        }
+        .modal-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 18px 22px; border-bottom: 1px solid #eee;
+        }
+        .modal-header h2 { font-size: 15px; font-weight: 600; color: #333; }
+        .modal-close {
+            width: 26px; height: 26px; border: none; background: transparent;
+            color: #999; font-size: 18px; cursor: pointer; border-radius: 6px;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .modal-close:hover { background: #f5f5f5; color: #333; }
+        .modal-body { padding: 18px 22px; overflow-y: auto; max-height: calc(80vh - 120px); }
+        .modal-body .section-title { margin-top: 14px; }
+        .modal-body .section-title:first-child { margin-top: 0; }
+        .modal-footer {
+            display: flex; justify-content: flex-end; gap: 10px;
+            padding: 14px 22px; border-top: 1px solid #eee; background: #fafafa;
+        }
+
+        .path-display {
+            padding: 7px 10px; background: #f5f5f5; border: 1px solid #e0e0e0;
+            border-radius: 6px; font-size: 12px; color: #666; word-break: break-all;
+            min-height: 32px; display: flex; align-items: center;
+        }
+
+        /* 日志区域 */
+        .log-area {
+            flex: 2; display: flex; flex-direction: column;
+            background: #1e1e1e; color: #d4d4d4; min-height: 0;
+        }
+        .log-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 6px 10px; background: #2d2d2d; border-bottom: 1px solid #3e3e3e;
+            font-size: 11px; color: #888; flex-shrink: 0;
+        }
+        .log-header i { margin-right: 4px; }
+        .log-clear-btn {
+            background: none; border: 1px solid #555; color: #999;
+            border-radius: 4px; padding: 2px 8px; font-size: 10px;
+            cursor: pointer; transition: all 0.15s;
+        }
+        .log-clear-btn:hover { background: #3e3e3e; color: #ccc; border-color: #777; }
+        .log-content {
+            flex: 1; overflow-y: auto; padding: 6px 10px;
+            font-size: 11px; font-family: Consolas, "Courier New", monospace; line-height: 1.6;
+        }
+        .log-content::-webkit-scrollbar { width: 4px; }
+        .log-content::-webkit-scrollbar-thumb { background: #555; border-radius: 2px; }
+        .log-area::-webkit-scrollbar { width: 4px; }
+        .log-area::-webkit-scrollbar-thumb { background: #555; border-radius: 2px; }
+
+        /* Message */
+        .message-container {
+            position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+            z-index: 2000; display: flex; flex-direction: column; gap: 8px;
+        }
+        .message {
+            padding: 10px 16px; border-radius: 8px; font-size: 13px; font-weight: 500;
+            display: flex; align-items: center; gap: 8px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.12); animation: slideIn 0.25s ease;
+            min-width: 260px; max-width: 480px;
+        }
+        .message.success { background: #e6f7e9; color: #0a7a1a; border: 1px solid #b3e6c0; }
+        .message.error { background: #fde8e8; color: #c62828; border: 1px solid #f5b3b3; }
+        .message.info { background: #e3f2fd; color: #1565c0; border: 1px solid #b3d9ff; }
+        .message i { font-size: 14px; }
+        .message-close {
+            margin-left: auto; background: none; border: none;
+            color: inherit; cursor: pointer; font-size: 14px; opacity: 0.6; padding: 0 2px;
+        }
+        .message-close:hover { opacity: 1; }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes slideOut { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-8px); } }
+        .message.removing { animation: slideOut 0.2s ease forwards; }
+        @media (max-width: 768px) {
+            body { flex-direction: column; height: auto; overflow: auto; }
+            .left-panel { width: 100% !important; max-width: 100% !important; height: auto; border-right: none; border-bottom: 1px solid #e8e8e8; overflow-y: visible; }
+            .right-panel { height: auto; min-height: 50vh; }
+            .card-pair { flex-direction: column; }
+            .modal { width: 92vw !important; max-height: 90vh; overflow-y: auto; left: 4vw !important; transform: none !important; }
+            .input-section { padding: 14px 16px 20px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="left-panel">
+        <div class="input-section">
+            <div class="header">
+                <h1>GPT-SoVITS 配音（引擎版）</h1>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <span id="mainEngineStatus" class="engine-status engine-stopped" style="font-size:12px;cursor:pointer;" onclick="openSettings()" title="点击打开设置">
+                        <span class="status-dot"></span>未初始化
+                    </span>
+                    <button class="settings-icon" onclick="openSettings()" title="设置">
+                        <i class="fas fa-wrench"></i>
+                    </button>
+                </div>
+            </div>
+            <p class="subtitle">GPT-SoVITS 本地推理 · 子进程模式</p>
+
+            <!-- Row 1: 模型切换 + 参考音频 -->
+            <div class="card-pair">
+                <div class="section-card">
+                    <div class="input-group no-icon">
+                        <label>快捷切换</label>
+                        <div style="display:flex;gap:6px;">
+                            <select id="quickSwitch" style="flex:1;">
+                                <option value="">选择模型组</option>
+                            </select>
+                            <button class="btn btn-outline btn-sm" onclick="quickSwitchRandom()" style="white-space:nowrap;"><i class="fas fa-refresh"></i> 模型随机参数</button>
+                        </div>
+                        <div style="display:flex;gap:6px;margin-top:6px;">
+                            <button class="btn btn-outline btn-sm" onclick="quickSwitchPreset('rich_emotion')" style="flex:1;font-size:11px;">情感更丰富</button>
+                            <button class="btn btn-outline btn-sm" onclick="quickSwitchPreset('stable_pitch')" style="flex:1;font-size:11px;">音准更稳定</button>
+                            <button class="btn btn-outline btn-sm" onclick="quickSwitchPreset('min_gen')" style="flex:1;font-size:11px;">最小泛化</button>
+                            <button class="btn btn-outline btn-sm" onclick="quickSwitchPreset('max_gen')" style="flex:1;font-size:11px;">最大泛化</button>
+                        </div>
+                    </div>
+                    <div class="section-title-row" style="margin-top:8px;">
+                        <span class="title-left"><i class="fas fa-brain"></i> 模型切换</span>
+                        <div style="display:flex;gap:4px;">
+                            <button class="btn btn-outline btn-sm" onclick="switchModels()"><i class="fas fa-refresh"></i> 切换模型（接口）</button>
+                            <button class="btn btn-outline btn-sm" onclick="saveModelSelection()"><i class="fas fa-floppy-disk"></i> 保存配置</button>
+                        </div>
+                    </div>
+                    <div class="input-group">
+                        <label for="gptModel">GPT 模型</label>
+                        <div class="input-wrap">
+                            <i class="fas fa-robot"></i>
+                            <select id="gptModel" class="model-select">
+                                <option value="">请先配置 GPT 模型文件夹</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="input-group">
+                        <label for="sovitsModel">SoVITS 模型</label>
+                        <div class="input-wrap">
+                            <i class="fas fa-robot"></i>
+                            <select id="sovitsModel" class="model-select">
+                                <option value="">请先配置 SoVITS 模型文件夹</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="section-card">
+                    <div class="section-title-row">
+                        <span class="title-left"><i class="fas fa-folder-open"></i> 参考音频</span>
+                    </div>
+                    <div class="input-group no-icon">
+                        <label>选择音频 <span style="color:#c62828;">*</span></label>
+                        <select id="audioFileSelect">
+                            <option value="">请先在设置中配置音频文件夹</option>
+                        </select>
+                    </div>
+                    <div class="input-group" style="margin-bottom: 8px;">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="refFree" onchange="toggleRefFree()" checked> 免参考文本模式（仅克隆音色）
+                        </label>
+                    </div>
+                    <div class="input-group" id="promptTextGroup">
+                        <label for="promptText">参考音频文本 <span id="promptTextRequired" style="color:#c62828;">*</span></label>
+                        <div class="input-wrap">
+                            <i class="fas fa-pen"></i>
+                            <input type="text" id="promptText" placeholder="参考音频中说的文字内容">
+                        </div>
+                    </div>
+                    <div class="input-group no-icon">
+                        <label for="promptLang">参考音频语种</label>
+                        <select id="promptLang">
+                            <option value="zh" selected>中文</option>
+                            <option value="en">英文</option>
+                            <option value="ja">日文</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Row 2: 合成内容 + 推理参数 -->
+            <div class="card-pair">
+                <div class="section-card">
+                    <div class="section-title"><i class="fas fa-pen"></i> 合成内容</div>
+                    <div class="input-group">
+                        <label for="synthText">合成文本</label>
+                        <textarea class="text-input" id="synthText" placeholder="输入要合成语音的文本...">你好，这是一段语音合成测试。</textarea>
+                    </div>
+                    <div class="input-group no-icon">
+                        <label for="textLang">文本语种</label>
+                        <select id="textLang">
+                            <option value="zh" selected>中文</option>
+                            <option value="en">英文</option>
+                            <option value="ja">日文</option>
+                            <option value="auto">多语种混合</option>
+                            <option value="all_zh">纯中文</option>
+                            <option value="all_ja">纯日文</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="section-card">
+                    <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;">
+                        <span><i class="fas fa-tags"></i> 推理参数</span>
+                        <button class="btn btn-outline btn-sm" onclick="saveInferConfig()"><i class="fas fa-floppy-disk"></i> 保存推理配置</button>
+                    </div>
+                    <div class="input-group no-icon">
+                        <label>文本分段</label>
+                        <select id="textSplitMethod">
+                            <option value="cut5" selected>按标点符号切</option>
+                            <option value="cut0">不切</option>
+                            <option value="cut1">凑四句一切</option>
+                            <option value="cut2">凑50字一切</option>
+                            <option value="cut3">按中文句号切</option>
+                            <option value="cut4">按英文句号切</option>
+                        </select>
+                    </div>
+                    <div class="input-group no-icon">
+                        <label>Batch Size</label>
+                        <select id="batchSize">
+                            <option value="1">1</option>
+                            <option value="8">8</option>
+                            <option value="16">16</option>
+                            <option value="32" selected>32</option>
+                            <option value="64">64</option>
+                            <option value="256">256</option>
+                            <option value="512">512</option>
+                        </select>
+                    </div>
+                    <div class="slider-group">
+                        <label>Top K</label>
+                        <div class="slider-row">
+                            <input type="range" id="topK" min="1" max="100" step="1" value="5">
+                            <span class="slider-value" id="topKVal">5</span>
+                        </div>
+                    </div>
+                    <div class="slider-group">
+                        <label>Top P</label>
+                        <div class="slider-row">
+                            <input type="range" id="topP" min="0" max="1" step="0.05" value="1">
+                            <span class="slider-value" id="topPVal">1</span>
+                        </div>
+                    </div>
+                    <div class="slider-group">
+                        <label>Temperature</label>
+                        <div class="slider-row">
+                            <input type="range" id="temperature" min="0" max="1" step="0.05" value="1">
+                            <span class="slider-value" id="temperatureVal">1</span>
+                        </div>
+                    </div>
+                    <div class="slider-group">
+                        <label>语速</label>
+                        <div class="slider-row">
+                            <input type="range" id="speed" min="0.6" max="1.65" step="0.05" value="1">
+                            <span class="slider-value" id="speedVal">1</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 合成按钮 -->
+            <button class="synth-btn" id="synthBtn" onclick="synthesize()">
+                <i class="fas fa-microphone"></i> 合成语音
+            </button>
+        </div>
+    </div>
+
+    <div class="right-panel">
+        <div class="right-content">
+            <div id="placeholder" class="placeholder">
+                <div class="placeholder-icon"><i class="fas fa-robot"></i></div>
+                <p>合成完成后在此试听音频</p>
+                <p class="placeholder-hint">支持中文、英文、日文等多种语言</p>
+            </div>
+            <div id="synthLoading" class="placeholder" style="display:none;">
+                <div class="spinner-lg"></div>
+                <p style="margin-top:16px;">正在合成语音，请稍候...</p>
+            </div>
+            <div id="audioWrap" class="audio-wrap">
+                <audio id="audioPlayer" class="audio-player" controls></audio>
+                <div class="audio-meta" id="audioMeta"></div>
+                <div class="audio-actions">
+                    <a id="downloadLink" class="btn btn-outline" href="#" download="synthesis.wav">
+                        <i class="fas fa-file"></i> 下载音频
+                    </a>
+                    <button class="btn btn-outline" onclick="replayAudio()">
+                        <i class="fas fa-refresh"></i> 重新播放
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="log-area" id="logArea">
+            <div class="log-header">
+                <span><i class="fas fa-code"></i> 控制台日志</span>
+                <button class="log-clear-btn" onclick="clearLogs()" title="清除日志">清除</button>
+            </div>
+            <div class="log-content" id="logContent"></div>
+        </div>
+    </div>
+
+    <!-- 设置弹窗 -->
+    <div class="modal-overlay" id="settingsModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2><i class="fas fa-wrench"></i> 设置</h2>
+                <button class="modal-close" onclick="closeSettings()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <!-- 引擎状态 -->
+                <div class="section-title">
+                    <i class="fas fa-robot"></i> 引擎状态
+                    <span id="engineStatus" class="engine-status engine-stopped"><span class="status-dot"></span>未初始化</span>
+                </div>
+                <div class="input-group">
+                    <label for="modalSovitsPath">GPT-SoVITS 项目路径</label>
+                    <div class="input-wrap">
+                        <i class="fas fa-folder-open"></i>
+                        <input type="text" id="modalSovitsPath" placeholder="例如 E:\AI\GPT-SoVITS-v4">
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label for="modalSovitsConfigYaml">TTS 配置文件（相对路径）</label>
+                    <div class="input-wrap">
+                        <i class="fas fa-folder"></i>
+                        <input type="text" id="modalSovitsConfigYaml" placeholder="GPT_SoVITS\configs\tts_infer.yaml">
+                    </div>
+                </div>
+                <div class="btn-row" style="margin-bottom: 8px;">
+                    <button class="btn btn-outline btn-sm" onclick="saveEnginePath()"><i class="fas fa-floppy-disk"></i> 保存路径</button>
+                    <button class="btn btn-outline btn-sm" id="btnStartEngine" onclick="initEngine()"><i class="fas fa-play"></i> 启动引擎</button>
+                    <button class="btn btn-outline btn-sm" id="btnStopEngine" onclick="stopEngine()" style="display:none;"><i class="fas fa-times-circle"></i> 停止引擎</button>
+                    <button class="btn btn-outline btn-sm" id="btnReloadEngine" onclick="reloadEngine()" style="display:none;"><i class="fas fa-refresh"></i> 重新加载</button>
+                </div>
+
+                <!-- 模型文件夹 -->
+                <div class="section-title"><i class="fas fa-folder"></i> 模型文件夹</div>
+                <div class="input-group">
+                    <label for="modalGptModelDir">GPT 模型文件夹</label>
+                    <div class="path-row">
+                        <select id="modalGptModelDirMode">
+                            <option value="absolute">绝对路径</option>
+                            <option value="relative">相对路径</option>
+                        </select>
+                        <input type="text" id="modalGptModelDir" placeholder="含 .ckpt 文件的文件夹路径">
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label for="modalSovitsModelDir">SoVITS 模型文件夹</label>
+                    <div class="path-row">
+                        <select id="modalSovitsModelDirMode">
+                            <option value="absolute">绝对路径</option>
+                            <option value="relative">相对路径</option>
+                        </select>
+                        <input type="text" id="modalSovitsModelDir" placeholder="含 .pth 文件的文件夹路径">
+                    </div>
+                </div>
+                <div class="btn-row">
+                    <button class="btn btn-outline btn-sm" onclick="saveModelDirs()"><i class="fas fa-floppy-disk"></i> 保存</button>
+                    <button class="btn btn-outline btn-sm" onclick="refreshModels()"><i class="fas fa-refresh"></i> 刷新模型列表</button>
+                </div>
+
+                <!-- 参考音频文件夹 -->
+                <div class="section-title"><i class="fas fa-folder-open"></i> 参考音频文件夹</div>
+                <div class="input-group">
+                    <label for="modalAudioFolder">音频文件夹路径</label>
+                    <div class="path-row">
+                        <select id="modalAudioFolderMode">
+                            <option value="absolute">绝对路径</option>
+                            <option value="relative">相对路径</option>
+                        </select>
+                        <input type="text" id="modalAudioFolder" placeholder="例如 D:\声音素材\参考音频">
+                    </div>
+                </div>
+                <div class="btn-row">
+                    <button class="btn btn-outline btn-sm" onclick="saveAudioFolder()"><i class="fas fa-floppy-disk"></i> 保存</button>
+                    <button class="btn btn-outline btn-sm" onclick="scanFromSettings()"><i class="fas fa-search"></i> 扫描并刷新</button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="saveSettings()">保存设置</button>
+                <button class="btn btn-outline" onclick="closeSettings()">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="message-container" id="messageContainer"></div>
+
+    <script>
+        var placeholder = document.getElementById('placeholder');
+        var synthLoading = document.getElementById('synthLoading');
+        var audioWrap = document.getElementById('audioWrap');
+        var audioPlayer = document.getElementById('audioPlayer');
+        var audioMeta = document.getElementById('audioMeta');
+        var downloadLink = document.getElementById('downloadLink');
+        var synthBtn = document.getElementById('synthBtn');
+        var messageContainer = document.getElementById('messageContainer');
+
+        // 滑块实时显示
+        [['topK','topKVal'],['topP','topPVal'],['temperature','temperatureVal'],['speed','speedVal']].forEach(function(pair) {
+            var slider = document.getElementById(pair[0]);
+            var val = document.getElementById(pair[1]);
+            slider.addEventListener('input', function() { val.textContent = slider.value; });
+        });
+
+        // ========== Message ==========
+        function showMessage(text, type, duration) {
+            duration = duration || 3000;
+            var icons = { success: 'fa-check-circle', error: 'fa-times-circle', info: 'fa-info-circle' };
+            var message = document.createElement('div');
+            message.className = 'message ' + type;
+            message.innerHTML = '<i class="fas ' + (icons[type] || '') + '"></i> ' +
+                '<span>' + text + '</span>' +
+                '<button class="message-close" onclick="closeMessage(this)">&times;</button>';
+            messageContainer.appendChild(message);
+            if (duration > 0) setTimeout(function() { removeMessage(message); }, duration);
+        }
+        function closeMessage(btn) { removeMessage(btn.closest('.message')); }
+        function removeMessage(message) {
+            if (!message || message.classList.contains('removing')) return;
+            message.classList.add('removing');
+            setTimeout(function() { if (message.parentNode) message.parentNode.removeChild(message); }, 200);
+        }
+
+        // ========== 设置弹窗 ==========
+        function openSettings() {
+            document.getElementById('settingsModal').classList.add('show');
+            loadSettings();
+        }
+        function closeSettings() {
+            document.getElementById('settingsModal').classList.remove('show');
+        }
+
+        async function loadSettings() {
+            try {
+                var res = await fetch('/ai-dubbing/config');
+                var cfg = await res.json();
+                if (cfg.sovits_project_path) document.getElementById('modalSovitsPath').value = cfg.sovits_project_path;
+                if (cfg.sovits_config_yaml) document.getElementById('modalSovitsConfigYaml').value = cfg.sovits_config_yaml;
+                if (cfg.gpt_model_dir) document.getElementById('modalGptModelDir').value = cfg.gpt_model_dir;
+                if (cfg.sovits_model_dir) document.getElementById('modalSovitsModelDir').value = cfg.sovits_model_dir;
+                if (cfg.refer_audio_folder) document.getElementById('modalAudioFolder').value = cfg.refer_audio_folder;
+                document.getElementById('modalGptModelDirMode').value = cfg.gpt_model_dir_mode || 'absolute';
+                document.getElementById('modalSovitsModelDirMode').value = cfg.sovits_model_dir_mode || 'absolute';
+                document.getElementById('modalAudioFolderMode').value = cfg.refer_audio_folder_mode || 'absolute';
+            } catch (e) { showMessage('加载配置失败: ' + e.message, 'error'); }
+            checkEngineStatus();
+        }
+
+        async function saveSettings() {
+            var sovitsPath = document.getElementById('modalSovitsPath').value.trim();
+            var configYaml = document.getElementById('modalSovitsConfigYaml').value.trim();
+            var gptDir = document.getElementById('modalGptModelDir').value.trim();
+            var sovitsDir = document.getElementById('modalSovitsModelDir').value.trim();
+            var audioFolder = document.getElementById('modalAudioFolder').value.trim();
+            try {
+                await fetch('/ai-dubbing/config', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sovits_project_path: sovitsPath, sovits_config_yaml: configYaml,
+                        gpt_model_dir: gptDir, sovits_model_dir: sovitsDir, refer_audio_folder: audioFolder,
+                        gpt_model_dir_mode: document.getElementById('modalGptModelDirMode').value,
+                        sovits_model_dir_mode: document.getElementById('modalSovitsModelDirMode').value,
+                        refer_audio_folder_mode: document.getElementById('modalAudioFolderMode').value
+                    })
+                });
+                showMessage('设置已保存', 'success');
+                closeSettings();
+                loadMainConfig();
+            } catch (e) { showMessage('保存失败: ' + e.message, 'error'); }
+        }
+
+        async function saveEnginePath() {
+            var sovitsPath = document.getElementById('modalSovitsPath').value.trim();
+            var configYaml = document.getElementById('modalSovitsConfigYaml').value.trim();
+            if (!sovitsPath) { showMessage('请填写 GPT-SoVITS 项目路径', 'error'); return; }
+            try {
+                await fetch('/ai-dubbing/config', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sovits_project_path: sovitsPath, sovits_config_yaml: configYaml })
+                });
+                showMessage('引擎路径已保存', 'success');
+            } catch (e) { showMessage('保存失败: ' + e.message, 'error'); }
+        }
+
+        async function saveModelDirs() {
+            var gptDir = document.getElementById('modalGptModelDir').value.trim();
+            var sovitsDir = document.getElementById('modalSovitsModelDir').value.trim();
+            await fetch('/ai-dubbing/config', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    gpt_model_dir: gptDir, sovits_model_dir: sovitsDir,
+                    gpt_model_dir_mode: document.getElementById('modalGptModelDirMode').value,
+                    sovits_model_dir_mode: document.getElementById('modalSovitsModelDirMode').value
+                })
+            });
+            showMessage('文件夹配置已保存', 'success');
+            refreshModels();
+        }
+
+        function saveAudioFolder() {
+            var folder = document.getElementById('modalAudioFolder').value.trim();
+            fetch('/ai-dubbing/config', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    refer_audio_folder: folder,
+                    refer_audio_folder_mode: document.getElementById('modalAudioFolderMode').value
+                })
+            }).then(function() { showMessage('已保存', 'success'); });
+        }
+
+        async function refreshModels() {
+            try {
+                var res = await fetch('/ai-dubbing/config');
+                var cfg = await res.json();
+                fillModelSelect('gptModel', cfg.gpt_models || [], cfg.last_gpt_model);
+                fillModelSelect('sovitsModel', cfg.sovits_models || [], cfg.last_sovits_model);
+                populateQuickSwitch();
+                showMessage('模型列表已刷新', 'success');
+            } catch (e) { showMessage('刷新失败: ' + e.message, 'error'); }
+        }
+
+        async function scanFromSettings() {
+            var folder = document.getElementById('modalAudioFolder').value.trim();
+            if (!folder) { showMessage('请输入音频文件夹路径', 'error'); return; }
+            var count = await scanAudioFiles(folder);
+            if (count > 0) showMessage('扫描到 ' + count + ' 个音频文件');
+            else showMessage('未找到音频文件', 'error');
+        }
+
+        // ========== 引擎管理 ==========
+        var _logPollTimer = null;
+
+        function startLogPolling() {
+            stopLogPolling();
+            _logPollTimer = setInterval(checkEngineStatus, 600);
+        }
+        function stopLogPolling() {
+            if (_logPollTimer) { clearInterval(_logPollTimer); _logPollTimer = null; }
+        }
+
+        async function initEngine() {
+            var el = document.getElementById('engineStatus');
+            el.className = 'engine-status engine-loading';
+            el.innerHTML = '<span class="status-dot"></span>加载中...';
+            showMessage('正在初始化引擎，请稍候...', 'info', 0);
+            startLogPolling();
+            try {
+                var res = await fetch('/ai-dubbing/init-engine', { method: 'POST' });
+                var data = await res.json();
+                if (data.success) {
+                    updateEngineStatus('ready', 'v' + (data.version || ''));
+                    showMessage('引擎初始化成功', 'success');
+                } else {
+                    updateEngineStatus('error', data.error || '未知错误');
+                    showMessage('引擎初始化失败: ' + (data.error || '未知错误'), 'error', 0);
+                    stopLogPolling();
+                }
+            } catch (e) {
+                updateEngineStatus('error', e.message);
+                showMessage('请求失败: ' + e.message, 'error');
+                stopLogPolling();
+            }
+        }
+
+        async function reloadEngine() {
+            var el = document.getElementById('engineStatus');
+            el.className = 'engine-status engine-loading';
+            el.innerHTML = '<span class="status-dot"></span>重新加载中...';
+            showMessage('正在重新加载引擎...', 'info', 0);
+            startLogPolling();
+            try {
+                var res = await fetch('/ai-dubbing/reload-engine', { method: 'POST' });
+                var data = await res.json();
+                if (data.success) {
+                    updateEngineStatus('ready', 'v' + (data.version || ''));
+                    showMessage('引擎重新加载成功', 'success');
+                } else {
+                    updateEngineStatus('error', data.error || '未知错误');
+                    showMessage('重新加载失败: ' + (data.error || '未知错误'), 'error', 0);
+                    stopLogPolling();
+                }
+            } catch (e) {
+                updateEngineStatus('error', e.message);
+                showMessage('请求失败: ' + e.message, 'error');
+                stopLogPolling();
+            }
+        }
+
+        async function stopEngine() {
+            stopLogPolling();
+            try {
+                var res = await fetch('/ai-dubbing/stop-engine', { method: 'POST' });
+                var data = await res.json();
+                if (data.success) {
+                    updateEngineStatus('stopped', '已停止');
+                    showMessage('引擎已停止', 'success');
+                } else {
+                    showMessage('停止失败', 'error');
+                }
+            } catch (e) { showMessage('请求失败: ' + e.message, 'error'); }
+        }
+
+        async function clearLogs() {
+            try {
+                await fetch('/ai-dubbing/clear-logs', { method: 'POST' });
+                document.getElementById('logContent').innerHTML = '';
+            } catch (e) {}
+        }
+
+        async function checkEngineStatus() {
+            try {
+                var res = await fetch('/ai-dubbing/engine-status');
+                var data = await res.json();
+                if (data.initialized) {
+                    updateEngineStatus('ready', 'v' + (data.version || ''));
+                } else if (data.loading) {
+                    updateEngineStatus('loading', '加载中...');
+                } else if (data.error) {
+                    updateEngineStatus('error', data.error);
+                } else {
+                    updateEngineStatus('stopped', '未初始化');
+                }
+                // 显示日志（仅引擎运行中/加载中/出错时）
+                var logContent = document.getElementById('logContent');
+                if (data.initialized || data.loading || data.error) {
+                    var logs = data.logs || [];
+                    if (logs.length > 0) {
+                        logContent.innerHTML = logs.map(function(l) { return l.replace(/</g, '&lt;'); }).join('\n');
+                        logContent.scrollTop = logContent.scrollHeight;
+                    }
+                } else {
+                    logContent.innerHTML = '';
+                }
+            } catch (e) {}
+        }
+
+        function updateEngineStatus(state, msg) {
+            var el = document.getElementById('engineStatus');
+            var cls = { ready: 'engine-ready', loading: 'engine-loading', error: 'engine-error', stopped: 'engine-stopped' };
+            var labels = { ready: '已就绪', loading: '加载中', error: '引擎错误', stopped: '未初始化' };
+            el.className = 'engine-status ' + (cls[state] || 'engine-stopped');
+            el.innerHTML = '<span class="status-dot"></span>' + (msg || labels[state] || state);
+
+            // 同步主界面状态
+            var mainEl = document.getElementById('mainEngineStatus');
+            mainEl.className = 'engine-status ' + (cls[state] || 'engine-stopped');
+            mainEl.innerHTML = '<span class="status-dot"></span>' + (msg || labels[state] || state);
+
+            var btnStart = document.getElementById('btnStartEngine');
+            var btnStop = document.getElementById('btnStopEngine');
+            var btnReload = document.getElementById('btnReloadEngine');
+            if (state === 'ready') {
+                btnStart.style.display = 'none';
+                btnStop.style.display = '';
+                btnReload.style.display = '';
+                synthBtn.disabled = false;
+            } else {
+                btnStart.style.display = '';
+                btnStop.style.display = 'none';
+                btnReload.style.display = 'none';
+                synthBtn.disabled = true;
+            }
+        }
+
+        // ========== 快捷切换 ==========
+        function extractGroup(text) {
+            var m = text.match(/^([^-_]+)[-]/);
+            if (!m) m = text.match(/^([^-_]+)[_]/);
+            if (m) { var g = m[1].trim(); return g.length > 0 ? g : null; }
+            return null;
+        }
+
+        function extractES(text) {
+            var em = text.match(/e(\d+)/i);
+            var sm = text.match(/s(\d+)/i);
+            return { e: em ? parseInt(em[1]) : null, s: sm ? parseInt(sm[1]) : null };
+        }
+
+        function matchGroup(optText, grp) {
+            return optText.indexOf(grp + '-') === 0 || optText.indexOf(grp + '_') === 0 || optText === grp;
+        }
+
+        function collectGroupOptions(sel, group) {
+            var arr = [];
+            for (var i = 0; i < sel.options.length; i++) {
+                var text = sel.options[i].textContent;
+                if (!matchGroup(text, group)) continue;
+                var es = extractES(text);
+                arr.push({ value: sel.options[i].value, text: text, e: es.e, s: es.s });
+            }
+            return arr;
+        }
+
+        function populateQuickSwitch() {
+            var gptSel = document.getElementById('gptModel');
+            var sovSel = document.getElementById('sovitsModel');
+            var groups = {};
+
+            for (var i = 0; i < gptSel.options.length; i++) {
+                var g = extractGroup(gptSel.options[i].textContent);
+                if (g) groups[g] = (groups[g] || 0) | 1;
+            }
+            for (var i = 0; i < sovSel.options.length; i++) {
+                var g = extractGroup(sovSel.options[i].textContent);
+                if (g) groups[g] = (groups[g] || 0) | 2;
+            }
+
+            var common = Object.keys(groups).filter(function(k) { return groups[k] === 3; });
+            common.sort();
+
+            var qs = document.getElementById('quickSwitch');
+            qs.innerHTML = '<option value="">选择模型组</option>';
+            common.forEach(function(g) {
+                var opt = document.createElement('option');
+                opt.value = g;
+                opt.textContent = g;
+                qs.appendChild(opt);
+            });
+        }
+
+        function quickSwitchRandom() {
+            var group = document.getElementById('quickSwitch').value;
+            if (!group) { showMessage('请先选择一个模型组', 'error'); return; }
+
+            var gptSel = document.getElementById('gptModel');
+            var sovSel = document.getElementById('sovitsModel');
+            var gptOpts = collectGroupOptions(gptSel, group);
+            var sovOpts = collectGroupOptions(sovSel, group);
+
+            if (gptOpts.length) gptSel.value = gptOpts[Math.floor(Math.random() * gptOpts.length)].value;
+            if (sovOpts.length) sovSel.value = sovOpts[Math.floor(Math.random() * sovOpts.length)].value;
+        }
+
+        function quickSwitchPreset(type) {
+            var group = document.getElementById('quickSwitch').value;
+            if (!group) { showMessage('请先选择一个模型组', 'error'); return; }
+
+            var gptSel = document.getElementById('gptModel');
+            var sovSel = document.getElementById('sovitsModel');
+            var gptOpts = collectGroupOptions(gptSel, group);
+            var sovOpts = collectGroupOptions(sovSel, group);
+
+            if (type === 'rich_emotion') {
+                var gm = gptOpts.filter(function(o) { return o.e != null && o.e >= 12 && o.e <= 15; });
+                var sm = sovOpts.filter(function(o) { return o.e != null && o.e >= 12 && o.e <= 15 && (o.s == null || (o.s >= 100 && o.s <= 200)); });
+                if (!gm.length) gm = gptOpts; if (!sm.length) sm = sovOpts;
+                if (gm.length) gptSel.value = gm[Math.floor(Math.random() * gm.length)].value;
+                if (sm.length) sovSel.value = sm[Math.floor(Math.random() * sm.length)].value;
+            } else if (type === 'stable_pitch') {
+                var gm = gptOpts.filter(function(o) { return o.e != null && o.e >= 8 && o.e <= 10; });
+                var sm = sovOpts.filter(function(o) { return o.e != null && o.e >= 8 && o.e <= 10 && (o.s == null || (o.s >= 100 && o.s <= 200)); });
+                if (!gm.length) gm = gptOpts; if (!sm.length) sm = sovOpts;
+                if (gm.length) gptSel.value = gm[Math.floor(Math.random() * gm.length)].value;
+                if (sm.length) sovSel.value = sm[Math.floor(Math.random() * sm.length)].value;
+            } else if (type === 'min_gen') {
+                var gm = gptOpts.filter(function(o) { return o.e != null; }).sort(function(a, b) { return a.e - b.e; });
+                var sm = sovOpts.filter(function(o) { return o.e != null; }).sort(function(a, b) { return a.e - b.e || (a.s || 0) - (b.s || 0); });
+                if (gm.length) gptSel.value = gm[0].value;
+                if (sm.length) sovSel.value = sm[0].value;
+            } else if (type === 'max_gen') {
+                var gm = gptOpts.filter(function(o) { return o.e != null; }).sort(function(a, b) { return b.e - a.e; });
+                var sm = sovOpts.filter(function(o) { return o.e != null; }).sort(function(a, b) { return b.e - a.e || (b.s || 0) - (a.s || 0); });
+                if (gm.length) gptSel.value = gm[0].value;
+                if (sm.length) sovSel.value = sm[0].value;
+            }
+        }
+
+        // ========== 模型切换 ==========
+        function fillModelSelect(selectId, models, lastSelected) {
+            var sel = document.getElementById(selectId);
+            sel.innerHTML = '';
+            if (!models.length) {
+                sel.innerHTML = '<option value="">未找到模型文件</option>';
+                return;
+            }
+            models.forEach(function(m) {
+                var name = m.replace(/\.(ckpt|pth)$/i, '');
+                var opt = document.createElement('option');
+                opt.value = m;
+                opt.textContent = name;
+                opt.title = m;
+                if (m === lastSelected) opt.selected = true;
+                sel.appendChild(opt);
+            });
+        }
+
+        async function switchModels() {
+            var gpt = document.getElementById('gptModel').value;
+            var sovits = document.getElementById('sovitsModel').value;
+            if (!gpt && !sovits) { showMessage('请至少选择一个模型', 'error'); return; }
+
+            if (gpt) {
+                showMessage('正在切换 GPT 模型...', 'info', 0);
+                try {
+                    var res = await fetch('/ai-dubbing/switch-model', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ type: 'gpt', filename: gpt })
+                    });
+                    var data = await res.json();
+                    if (data.success) showMessage(data.message, 'success');
+                    else { showMessage('GPT 模型切换失败: ' + data.error, 'error'); return; }
+                } catch (e) { showMessage('GPT 模型切换失败: ' + e.message, 'error'); return; }
+            }
+
+            if (sovits) {
+                showMessage('正在切换 SoVITS 模型...', 'info', 0);
+                try {
+                    var res = await fetch('/ai-dubbing/switch-model', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ type: 'sovits', filename: sovits })
+                    });
+                    var data = await res.json();
+                    if (data.success) showMessage(data.message, 'success');
+                    else { showMessage('SoVITS 模型切换失败: ' + data.error, 'error'); return; }
+                } catch (e) { showMessage('SoVITS 模型切换失败: ' + e.message, 'error'); return; }
+            }
+        }
+
+        async function saveModelSelection() {
+            var gpt = document.getElementById('gptModel').value;
+            var sovits = document.getElementById('sovitsModel').value;
+            if (!gpt && !sovits) { showMessage('请至少选择一个模型', 'error'); return; }
+            try {
+                await fetch('/ai-dubbing/config', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ last_gpt_model: gpt, last_sovits_model: sovits })
+                });
+                showMessage('模型选择已保存', 'success');
+            } catch (e) { showMessage('保存失败: ' + e.message, 'error'); }
+        }
+
+        // ========== 参考音频 ==========
+        var scannedFiles = [];
+
+        async function scanAudioFiles(folder) {
+            if (!folder) return 0;
+            try {
+                var res = await fetch('/ai-dubbing/scan-audio-folder', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ folder: folder })
+                });
+                var data = await res.json();
+                if (data.success) {
+                    scannedFiles = data.files || [];
+                    renderAudioDropdown();
+                    return data.count;
+                }
+            } catch (e) {}
+            return 0;
+        }
+
+        function renderAudioDropdown() {
+            var sel = document.getElementById('audioFileSelect');
+            if (!scannedFiles.length) {
+                sel.innerHTML = '<option value="">未找到音频文件</option>';
+                return;
+            }
+            var html = '<option value="">请选择参考音频（3~10秒）</option>';
+            scannedFiles.forEach(function(f) {
+                var name = f.split(/[/\\]/).pop();
+                html += '<option value="' + f.replace(/"/g, '&quot;') + '">' + name + '</option>';
+            });
+            sel.innerHTML = html;
+        }
+
+        // ========== 推理参数保存 ==========
+        function saveInferConfig() {
+            fetch('/ai-dubbing/config', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    top_k: parseInt(document.getElementById('topK').value),
+                    top_p: parseFloat(document.getElementById('topP').value),
+                    temperature: parseFloat(document.getElementById('temperature').value),
+                    speed_factor: parseFloat(document.getElementById('speed').value),
+                    last_text_split_method: document.getElementById('textSplitMethod').value,
+                    batch_size: parseInt(document.getElementById('batchSize').value)
+                })
+            }).then(function() { showMessage('参数已保存', 'success'); });
+        }
+
+        // ========== 合成 ==========
+        async function synthesize() {
+            var text = document.getElementById('synthText').value.trim();
+            var refAudioPath = document.getElementById('audioFileSelect').value;
+            if (!text) { showMessage('请输入合成文本', 'error'); return; }
+            if (!refAudioPath) { showMessage('请选择参考音频', 'error'); return; }
+
+            // UI: 开始合成
+            synthBtn.disabled = true;
+            synthBtn.innerHTML = '<span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 0.8s linear infinite;"></span> 合成中...';
+            placeholder.style.display = 'none';
+            audioWrap.classList.remove('show');
+            synthLoading.style.display = '';
+
+            // 先切换模型
+            var gpt = document.getElementById('gptModel').value;
+            var sovits = document.getElementById('sovitsModel').value;
+            if (gpt) {
+                try {
+                    var res = await fetch('/ai-dubbing/switch-model', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ type: 'gpt', filename: gpt })
+                    });
+                    var data = await res.json();
+                    if (!data.success) { showMessage('GPT 模型切换失败: ' + data.error, 'error'); resetSynthBtn(); return; }
+                } catch (e) { showMessage('GPT 模型切换失败: ' + e.message, 'error'); resetSynthBtn(); return; }
+            }
+            if (sovits) {
+                try {
+                    var res = await fetch('/ai-dubbing/switch-model', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ type: 'sovits', filename: sovits })
+                    });
+                    var data = await res.json();
+                    if (!data.success) { showMessage('SoVITS 模型切换失败: ' + data.error, 'error'); resetSynthBtn(); return; }
+                } catch (e) { showMessage('SoVITS 模型切换失败: ' + e.message, 'error'); resetSynthBtn(); return; }
+            }
+
+            // 发送合成请求
+            var startTime = Date.now();
+            var payload = {
+                text: text,
+                text_lang: document.getElementById('textLang').value,
+                ref_audio_path: refAudioPath,
+                prompt_text: document.getElementById('refFree').checked ? '' : document.getElementById('promptText').value.trim(),
+                prompt_lang: document.getElementById('promptLang').value,
+                text_split_method: document.getElementById('textSplitMethod').value,
+                top_k: parseInt(document.getElementById('topK').value) || 5,
+                top_p: parseFloat(document.getElementById('topP').value),
+                temperature: parseFloat(document.getElementById('temperature').value),
+                speed_factor: parseFloat(document.getElementById('speed').value),
+                seed: -1,
+                batch_size: parseInt(document.getElementById('batchSize').value) || 32
+            };
+            saveInferConfig();
+
+            try {
+                var res = await fetch('/ai-dubbing/synthesize', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                var data = await res.json();
+                if (!data.success) {
+                    showMessage(data.error || '合成失败', 'error');
+                    resetSynthBtn();
+                    synthLoading.style.display = 'none';
+                    placeholder.style.display = '';
+                    return;
+                }
+
+                // 轮询任务状态
+                var taskId = data.task_id;
+                var result = await pollTask(taskId);
+                var elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+
+                if (result && result.audio_url) {
+                    synthLoading.style.display = 'none';
+                    audioWrap.classList.add('show');
+                    audioPlayer.src = result.audio_url;
+                    var safeName = text.replace(/[\r\n]/g, '').substring(0, 10).replace(/[\\/:*?"<>|]/g, '_');
+                    var gptModel = document.getElementById('gptModel').value.replace(/\.[^.]+$/, '');
+                    var now = new Date();
+                    var timestamp = now.getFullYear()
+                        + String(now.getMonth()+1).padStart(2,'0')
+                        + String(now.getDate()).padStart(2,'0')
+                        + String(now.getHours()).padStart(2,'0')
+                        + String(now.getMinutes()).padStart(2,'0')
+                        + String(now.getSeconds()).padStart(2,'0')
+                        + String(now.getMilliseconds()).padStart(3,'0');
+                    var dlName = gptModel + '_' + safeName + '_' + timestamp + '.wav';
+                    fetch(result.audio_url).then(function(r){ return r.blob(); }).then(function(blob){
+                        if (downloadLink._blobUrl) URL.revokeObjectURL(downloadLink._blobUrl);
+                        downloadLink._blobUrl = URL.createObjectURL(blob);
+                        downloadLink.href = downloadLink._blobUrl;
+                        downloadLink.download = dlName;
+                    });
+                    audioMeta.innerHTML = '<span class="meta-label">耗时</span> <span class="meta-value">' + elapsed + 's</span>';
+                    showMessage('合成完成，耗时 ' + elapsed + ' 秒', 'success');
+                } else {
+                    showMessage(result ? (result.error || '合成失败') : '合成失败', 'error');
+                    synthLoading.style.display = 'none';
+                    placeholder.style.display = '';
+                }
+            } catch (e) {
+                showMessage('请求失败: ' + e.message, 'error');
+                synthLoading.style.display = 'none';
+                placeholder.style.display = '';
+            } finally {
+                resetSynthBtn();
+            }
+        }
+
+        function pollTask(taskId) {
+            return new Promise(function(resolve) {
+                function check() {
+                    fetch('/ai-dubbing/status/' + taskId)
+                        .then(function(r) { return r.json(); })
+                        .then(function(data) {
+                            if (!data.success) { resolve(null); return; }
+                            var p = data.progress;
+                            if (p.status === 'done') {
+                                resolve({ audio_url: data.audio_url });
+                            } else if (p.status === 'error') {
+                                resolve({ error: p.error });
+                            } else {
+                                setTimeout(check, 500);
+                            }
+                        })
+                        .catch(function() { resolve(null); });
+                }
+                check();
+            });
+        }
+
+        function resetSynthBtn() {
+            synthBtn.disabled = false;
+            synthBtn.innerHTML = '<i class="fas fa-microphone"></i> 合成语音';
+        }
+
+        function replayAudio() { audioPlayer.currentTime = 0; audioPlayer.play(); }
+
+        function toggleRefFree() {
+            var checked = document.getElementById('refFree').checked;
+            document.getElementById('promptTextGroup').style.display = checked ? 'none' : '';
+            document.getElementById('promptTextRequired').style.display = checked ? 'none' : '';
+        }
+
+        // ========== 加载主配置 ==========
+        async function loadMainConfig() {
+            try {
+                var res = await fetch('/ai-dubbing/config');
+                var cfg = await res.json();
+                fillModelSelect('gptModel', cfg.gpt_models || [], cfg.last_gpt_model);
+                fillModelSelect('sovitsModel', cfg.sovits_models || [], cfg.last_sovits_model);
+                populateQuickSwitch();
+                // 参考音频
+                if (cfg.refer_audio_folder) scanAudioFiles(cfg.refer_audio_folder);
+                // 参数
+                if (cfg.top_k != null) { document.getElementById('topK').value = cfg.top_k; document.getElementById('topKVal').textContent = cfg.top_k; }
+                if (cfg.top_p != null) { document.getElementById('topP').value = cfg.top_p; document.getElementById('topPVal').textContent = cfg.top_p; }
+                if (cfg.temperature != null) { document.getElementById('temperature').value = cfg.temperature; document.getElementById('temperatureVal').textContent = cfg.temperature; }
+                if (cfg.speed_factor != null) { document.getElementById('speed').value = cfg.speed_factor; document.getElementById('speedVal').textContent = cfg.speed_factor; }
+                if (cfg.last_text_split_method) document.getElementById('textSplitMethod').value = cfg.last_text_split_method;
+                if (cfg.batch_size != null) document.getElementById('batchSize').value = cfg.batch_size;
+                if (cfg.last_text_lang) document.getElementById('textLang').value = cfg.last_text_lang;
+                if (cfg.last_prompt_lang) document.getElementById('promptLang').value = cfg.last_prompt_lang;
+                if (cfg.last_prompt_text) document.getElementById('promptText').value = cfg.last_prompt_text;
+                // 引擎状态
+                var es = cfg.engine_status;
+                if (es) {
+                    if (es.initialized) {
+                        updateEngineStatus('ready', 'v' + (es.version || ''));
+                        startLogPolling();
+                    } else if (es.loading) {
+                        updateEngineStatus('loading', '加载中...');
+                        startLogPolling();
+                    } else if (es.error) {
+                        updateEngineStatus('error', es.error);
+                    } else {
+                        updateEngineStatus('stopped', '未初始化');
+                    }
+                }
+            } catch (e) {}
+        }
+
+        // Ctrl+Enter 合成
+        document.getElementById('synthText').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) synthesize();
+        });
+
+        loadMainConfig();
+        toggleRefFree();
+    </script>
+</body>
+</html>

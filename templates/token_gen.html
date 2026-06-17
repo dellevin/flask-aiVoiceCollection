@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='font-awesome.css') }}">
+    <title>Token 生成器</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #f5f5f5; color: #333;
+            height: 100vh; overflow-y: auto;
+        }
+        .container { max-width: 700px; margin: 0 auto; padding: 24px 28px 40px; }
+
+        .header { display: flex; align-items: center; margin-bottom: 2px; }
+        .header h1 { font-size: 18px; font-weight: 700; color: #1a1a1a; }
+        .subtitle { color: #aaa; font-size: 12px; margin-bottom: 16px; }
+
+        .section-card {
+            background: #fafafa; border: 1px solid #f0f0f0;
+            border-radius: 10px; padding: 14px 16px; margin-bottom: 12px;
+        }
+        .section-title {
+            font-size: 11px; font-weight: 600; color: #999;
+            text-transform: uppercase; letter-spacing: 0.06em;
+            margin-bottom: 12px; display: flex; align-items: center; gap: 6px;
+        }
+        .section-title i { font-size: 11px; }
+
+        /* 复选框 */
+        .chk-label {
+            display: flex; align-items: center; gap: 8px;
+            cursor: pointer; font-size: 13px; color: #555;
+            padding: 6px 10px; border-radius: 6px; transition: background 0.15s;
+            margin-bottom: 2px;
+        }
+        .chk-label:hover { background: #f0f0f0; }
+        .chk-label input { display: none; }
+        .chk-icon {
+            width: 17px; height: 17px; border: 2px solid #d0d0d0; border-radius: 4px;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.15s; flex-shrink: 0;
+        }
+        .chk-icon i { font-size: 10px; color: #fff; opacity: 0; transition: opacity 0.15s; }
+        .chk-label input:checked ~ .chk-icon { background: #0078d4; border-color: #0078d4; }
+        .chk-label input:checked ~ .chk-icon i { opacity: 1; }
+
+        /* 滑块 */
+        .slider-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+        .slider-head .label { font-size: 12px; font-weight: 500; color: #555; }
+        .slider-head .val { font-size: 18px; font-weight: 700; color: #0078d4; font-family: "SFMono-Regular", Consolas, monospace; }
+        input[type="range"] {
+            width: 100%; height: 6px; -webkit-appearance: none; appearance: none;
+            background: #e0e0e0; border-radius: 3px; outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 18px; height: 18px;
+            background: #0078d4; border-radius: 50%; cursor: pointer;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+        }
+
+        /* 按钮 */
+        .btn {
+            padding: 7px 14px; border: none; border-radius: 6px;
+            font-size: 12px; font-weight: 600; cursor: pointer;
+            transition: all 0.12s ease;
+            display: inline-flex; align-items: center; gap: 5px;
+        }
+        .btn-outline { background: #fff; color: #666; border: 1px solid #e0e0e0; }
+        .btn-outline:hover { background: #f5f5f5; color: #333; }
+        .run-btn {
+            width: 100%; padding: 10px 18px;
+            background: linear-gradient(135deg, #0078d4, #005fa3);
+            color: #fff; border: none; border-radius: 8px;
+            font-size: 14px; font-weight: 600; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            transition: all 0.15s;
+            box-shadow: 0 2px 8px rgba(0,120,212,0.2);
+        }
+        .run-btn:hover { background: linear-gradient(135deg, #006cbd, #004e8a); transform: translateY(-1px); }
+        .run-btn.copied { background: linear-gradient(135deg, #2e7d32, #1b5e20); }
+
+        /* 结果 */
+        .result-card {
+            background: #fff; border: 1px solid #f0f0f0;
+            border-radius: 10px; padding: 20px 24px; text-align: center;
+        }
+        .token-box {
+            font-family: "SFMono-Regular", Consolas, monospace;
+            font-size: 14px; line-height: 1.8; color: #333;
+            word-break: break-all; user-select: all;
+            padding: 16px; background: #fafafa; border: 1px solid #e8e8e8;
+            border-radius: 8px; max-height: 200px; overflow-y: auto;
+            min-height: 60px;
+        }
+        .token-len { margin-top: 10px; font-size: 12px; color: #bbb; }
+
+        @media (max-width: 768px) {
+            .container { padding: 14px 16px 28px; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1><i class="fas fa-key" style="color:#0078d4;font-size:16px;margin-right:6px;"></i>Token 生成器</h1>
+    </div>
+    <p class="subtitle">随机字符串生成</p>
+
+    <!-- 配置 -->
+    <div class="section-card">
+        <div class="section-title"><i class="fas fa-sliders"></i> 配置</div>
+        <label class="chk-label"><input type="checkbox" id="optUpper" checked onchange="generate()"><span class="chk-icon"><i class="fas fa-check"></i></span><span>大写字母 A-Z</span></label>
+        <label class="chk-label"><input type="checkbox" id="optLower" checked onchange="generate()"><span class="chk-icon"><i class="fas fa-check"></i></span><span>小写字母 a-z</span></label>
+        <label class="chk-label"><input type="checkbox" id="optNum" checked onchange="generate()"><span class="chk-icon"><i class="fas fa-check"></i></span><span>数字 0-9</span></label>
+        <label class="chk-label"><input type="checkbox" id="optSym" onchange="generate()"><span class="chk-icon"><i class="fas fa-check"></i></span><span>符号 !@#$</span></label>
+        <div style="margin-top:12px;">
+            <div class="slider-head">
+                <span class="label">长度</span>
+                <span class="val" id="lenVal">64</span>
+            </div>
+            <input type="range" id="lenSlider" min="1" max="512" value="64" oninput="updateLen()">
+        </div>
+    </div>
+
+    <!-- 操作 -->
+    <div style="display:flex;gap:8px;margin-bottom:12px;">
+        <button class="run-btn" id="genBtn" onclick="generate()" style="flex:1;">
+            <i class="fas fa-refresh"></i> 生成
+        </button>
+        <button class="run-btn" id="copyBtn" onclick="copyToken()" style="flex:1;">
+            <i class="fas fa-copy"></i> 复制
+        </button>
+    </div>
+
+    <!-- 结果 -->
+    <div class="result-card">
+        <div class="token-box" id="tokenDisplay"></div>
+        <div class="token-len" id="tokenLen"></div>
+    </div>
+</div>
+
+<script>
+function shuffle(arr){
+    for(var i=arr.length-1;i>0;i--){
+        var j=Math.floor(Math.random()*(i+1));
+        var t=arr[i];arr[i]=arr[j];arr[j]=t;
+    }
+    return arr;
+}
+
+function generate(){
+    var chars='';
+    if(document.getElementById('optUpper').checked) chars+='ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    if(document.getElementById('optLower').checked) chars+='abcdefghijklmnopqrstuvwxyz';
+    if(document.getElementById('optNum').checked)   chars+='0123456789';
+    if(document.getElementById('optSym').checked)    chars+='.,;:!?./-"\'#{([-|\\@)]=}*+';
+    var len=parseInt(document.getElementById('lenSlider').value);
+    if(!chars){document.getElementById('tokenDisplay').textContent='请至少选择一种字符集';return;}
+    var repeated='';
+    while(repeated.length<len) repeated+=chars;
+    var arr=shuffle(repeated.split(''));
+    var token=arr.slice(0,len).join('');
+    document.getElementById('tokenDisplay').textContent=token;
+    document.getElementById('tokenLen').textContent=len+' 字符';
+}
+
+function updateLen(){
+    document.getElementById('lenVal').textContent=document.getElementById('lenSlider').value;
+    generate();
+}
+
+function copyToken(){
+    var text=document.getElementById('tokenDisplay').textContent;
+    if(!text)return;
+    var el=document.createElement('textarea');
+    el.value=text;el.style.cssText='position:fixed;left:-9999px';
+    document.body.appendChild(el);el.select();document.execCommand('copy');document.body.removeChild(el);
+    var btn=document.getElementById('copyBtn');
+    btn.innerHTML='<i class="fas fa-check"></i> 已复制';btn.classList.add('copied');
+    setTimeout(function(){btn.innerHTML='<i class="fas fa-copy"></i> 复制';btn.classList.remove('copied');},1500);
+}
+
+generate();
+</script>
+</body>
+</html>

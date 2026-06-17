@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='font-awesome.css') }}">
+    <title>HTTP 状态码</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #f5f5f5; color: #333;
+            height: 100vh; overflow: hidden; display: flex;
+        }
+        .left-panel {
+            width: 300px; background: #fff; border-right: 1px solid #e0e0e0;
+            display: flex; flex-direction: column;
+        }
+        .panel-header { padding: 28px 24px 18px; border-bottom: 1px solid #f0f0f0; }
+        .panel-header h1 { font-size: 20px; font-weight: 700; margin-bottom: 2px; }
+        .panel-header .sub { font-size: 13px; color: #999; }
+        .search-box {
+            margin: 20px 24px; position: relative;
+        }
+        .search-box i {
+            position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+            color: #bbb; font-size: 13px; pointer-events: none;
+        }
+        .search-box input {
+            width: 100%; padding: 10px 12px 10px 36px;
+            border: 1px solid #e0e0e0; border-radius: 8px;
+            font-size: 13px; outline: none; transition: border-color 0.2s;
+        }
+        .search-box input::placeholder { color: #ccc; }
+        .search-box input:focus { border-color: #0078d4; }
+        .cat-nav { padding: 0 24px; flex: 1; overflow-y: auto; }
+        .cat-nav-item {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 12px; border-radius: 8px; cursor: pointer;
+            font-size: 13px; font-weight: 500; color: #555;
+            transition: all 0.15s; margin-bottom: 2px;
+        }
+        .cat-nav-item:hover { background: #f5f5f5; }
+        .cat-nav-item.active { background: #f0f7ff; color: #0078d4; font-weight: 600; }
+        .cat-dot {
+            width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+        }
+        .cat-count {
+            font-size: 11px; color: #bbb; background: #f5f5f5;
+            padding: 1px 8px; border-radius: 10px;
+        }
+        .cat-nav-item.active .cat-count { background: #ddeeff; color: #0078d4; }
+        .panel-footer {
+            padding: 16px 24px; border-top: 1px solid #f0f0f0;
+            font-size: 11px; color: #bbb; text-align: center;
+        }
+        .right-panel { flex: 1; overflow-y: auto; padding: 28px 32px; }
+        .section-title {
+            font-size: 13px; font-weight: 700; color: #999;
+            text-transform: uppercase; letter-spacing: 0.06em;
+            margin: 28px 0 12px; padding-bottom: 8px;
+            border-bottom: 1px solid #eee;
+        }
+        .section-title:first-child { margin-top: 0; }
+        .code-grid { display: flex; flex-direction: column; gap: 6px; }
+        .code-card {
+            background: #fff; border: 1px solid #e8e8e8; border-radius: 10px;
+            padding: 14px 18px; display: flex; align-items: baseline; gap: 14px;
+            transition: all 0.15s; cursor: default;
+        }
+        .code-card:hover { border-color: #c0c0c0; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+        .code-num {
+            font-size: 18px; font-weight: 700; font-family: "SFMono-Regular", Consolas, monospace;
+            min-width: 44px; flex-shrink: 0;
+        }
+        .code-info { flex: 1; min-width: 0; }
+        .code-name { font-size: 14px; font-weight: 600; color: #333; margin-bottom: 2px; }
+        .code-desc { font-size: 12px; color: #888; line-height: 1.5; }
+        .c1xx .code-num { color: #0288d1; }
+        .c2xx .code-num { color: #2e7d32; }
+        .c3xx .code-num { color: #f57f17; }
+        .c4xx .code-num { color: #c62828; }
+        .c5xx .code-num { color: #7b1fa2; }
+        .dot-1xx { background: #0288d1; }
+        .dot-2xx { background: #2e7d32; }
+        .dot-3xx { background: #f57f17; }
+        .dot-4xx { background: #c62828; }
+        .dot-5xx { background: #7b1fa2; }
+        .empty-state {
+            text-align: center; padding: 80px 20px; color: #ccc;
+        }
+        .empty-state i { font-size: 36px; margin-bottom: 12px; display: block; }
+        .empty-state p { font-size: 14px; }
+        .match-count {
+            font-size: 12px; color: #999; margin-bottom: 16px;
+        }
+
+        @media (max-width: 768px) {
+            body { flex-direction: column; height: auto; overflow: auto; }
+            .left-panel { width: 100% !important; height: auto; border-right: none; border-bottom: 1px solid #e8e8e8; overflow-y: visible; }
+            .right-panel { height: auto; min-height: 50vh; }
+            .input-section { padding: 14px 16px 20px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="left-panel">
+    <div class="panel-header">
+        <h1>HTTP 状态码</h1>
+        <span class="sub">快速参考手册</span>
+    </div>
+    <div class="search-box">
+        <i class="fas fa-search"></i>
+        <input type="text" id="searchInput" placeholder="搜索状态码、名称或描述..." oninput="onSearch()">
+    </div>
+    <div class="cat-nav" id="catNav"></div>
+    <div class="panel-footer">共 60+ 状态码</div>
+</div>
+
+<div class="right-panel" id="content"></div>
+
+<script>
+var data = [
+    {cat:'1xx 信息响应', cls:'c1xx', dot:'dot-1xx', codes:[
+        {n:100,e:'Continue',d:'等待客户端继续发送请求体。'},
+        {n:101,e:'Switching Protocols',d:'服务器同意切换协议。'},
+        {n:102,e:'Processing',d:'服务器正在处理请求，尚无响应可用。'},
+        {n:103,e:'Early Hints',d:'服务器在最终响应前返回部分响应头。'}
+    ]},
+    {cat:'2xx 成功', cls:'c2xx', dot:'dot-2xx', codes:[
+        {n:200,e:'OK',d:'标准的成功响应。'},
+        {n:201,e:'Created',d:'请求成功并创建了新资源。'},
+        {n:202,e:'Accepted',d:'请求已接受但尚未处理完成。'},
+        {n:203,e:'Non-Authoritative Information',d:'请求成功，但内容已被代理修改。'},
+        {n:204,e:'No Content',d:'服务器成功处理但不返回内容。'},
+        {n:205,e:'Reset Content',d:'重置文档视图。'},
+        {n:206,e:'Partial Content',d:'服务器返回部分内容。'},
+        {n:207,e:'Multi-Status',d:'XML 消息包含多个独立响应码。(WebDAV)'},
+        {n:208,e:'Already Reported',d:'DAV 绑定成员已在前面枚举。(WebDAV)'},
+        {n:226,e:'IM Used',d:'服务器已完成资源请求，响应为操作结果。'}
+    ]},
+    {cat:'3xx 重定向', cls:'c3xx', dot:'dot-3xx', codes:[
+        {n:300,e:'Multiple Choices',d:'有多个可选资源。'},
+        {n:301,e:'Moved Permanently',d:'资源已永久移动到新 URI。'},
+        {n:302,e:'Found',d:'临时重定向到另一个 URL。'},
+        {n:303,e:'See Other',d:'可在另一 URI 下用 GET 获取响应。'},
+        {n:304,e:'Not Modified',d:'资源未修改，使用缓存。'},
+        {n:305,e:'Use Proxy',d:'必须通过指定代理访问资源。'},
+        {n:306,e:'Switch Proxy',d:'已不再使用。'},
+        {n:307,e:'Temporary Redirect',d:'临时重定向，保持请求方法不变。'},
+        {n:308,e:'Permanent Redirect',d:'永久重定向，保持请求方法不变。'}
+    ]},
+    {cat:'4xx 客户端错误', cls:'c4xx', dot:'dot-4xx', codes:[
+        {n:400,e:'Bad Request',d:'请求语法错误，服务器无法处理。'},
+        {n:401,e:'Unauthorized',d:'需要身份验证。'},
+        {n:402,e:'Payment Required',d:'保留用于未来数字支付。'},
+        {n:403,e:'Forbidden',d:'服务器拒绝执行，权限不足。'},
+        {n:404,e:'Not Found',d:'请求的资源未找到。'},
+        {n:405,e:'Method Not Allowed',d:'请求方法不被允许。'},
+        {n:406,e:'Not Acceptable',d:'资源无法生成客户端可接受的内容。'},
+        {n:407,e:'Proxy Authentication Required',d:'需要代理身份验证。'},
+        {n:408,e:'Request Timeout',d:'服务器等待请求超时。'},
+        {n:409,e:'Conflict',d:'请求与服务器当前状态冲突。'},
+        {n:410,e:'Gone',d:'资源已永久删除且不会再恢复。'},
+        {n:411,e:'Length Required',d:'缺少 Content-Length 头。'},
+        {n:412,e:'Precondition Failed',d:'服务器不满足请求中的前提条件。'},
+        {n:413,e:'Payload Too Large',d:'请求体超过服务器限制。'},
+        {n:414,e:'URI Too Long',d:'URI 过长无法处理。'},
+        {n:415,e:'Unsupported Media Type',d:'不支持的媒体类型。'},
+        {n:416,e:'Range Not Satisfiable',d:'无法满足请求的范围。'},
+        {n:417,e:'Expectation Failed',d:'无法满足 Expect 请求头。'},
+        {n:418,e:"I'm a teapot",d:'拒绝用茶壶煮咖啡。'},
+        {n:421,e:'Misdirected Request',d:'请求被定向到无法产生响应的服务器。'},
+        {n:422,e:'Unprocessable Entity',d:'请求格式正确但语义错误。(WebDAV)'},
+        {n:423,e:'Locked',d:'资源已锁定。(WebDAV)'},
+        {n:424,e:'Failed Dependency',d:'因前序请求失败而失败。(WebDAV)'},
+        {n:425,e:'Too Early',d:'服务器不愿冒险处理可能被重放的请求。'},
+        {n:426,e:'Upgrade Required',d:'客户端应切换协议（如 TLS）。'},
+        {n:428,e:'Precondition Required',d:'要求请求为条件请求。'},
+        {n:429,e:'Too Many Requests',d:'客户端发送请求过于频繁。'},
+        {n:431,e:'Request Header Fields Too Large',d:'请求头字段过大。'},
+        {n:451,e:'Unavailable For Legal Reasons',d:'因法律原因不可用。'}
+    ]},
+    {cat:'5xx 服务端错误', cls:'c5xx', dot:'dot-5xx', codes:[
+        {n:500,e:'Internal Server Error',d:'服务器内部错误。'},
+        {n:501,e:'Not Implemented',d:'服务器不支持该请求方法。'},
+        {n:502,e:'Bad Gateway',d:'网关或代理收到上游无效响应。'},
+        {n:503,e:'Service Unavailable',d:'服务暂时不可用（过载或维护）。'},
+        {n:504,e:'Gateway Timeout',d:'网关或代理等待上游响应超时。'},
+        {n:505,e:'HTTP Version Not Supported',d:'不支持的 HTTP 协议版本。'},
+        {n:506,e:'Variant Also Negotiates',d:'内容协商出现循环引用。'},
+        {n:507,e:'Insufficient Storage',d:'服务器存储空间不足。(WebDAV)'},
+        {n:508,e:'Loop Detected',d:'服务器检测到无限循环。(WebDAV)'},
+        {n:510,e:'Not Extended',d:'需要进一步扩展请求。'},
+        {n:511,e:'Network Authentication Required',d:'需要网络身份验证。'}
+    ]}
+];
+
+var activeCat = -1;
+
+function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function card(cls, n, name, desc) {
+    return '<div class="code-card ' + cls + '">'
+        + '<span class="code-num">' + n + '</span>'
+        + '<div class="code-info">'
+        + '<div class="code-name">' + esc(name) + '</div>'
+        + '<div class="code-desc">' + esc(desc) + '</div>'
+        + '</div></div>';
+}
+
+function renderNav() {
+    var html = '<div class="cat-nav-item' + (activeCat === -1 ? ' active' : '') + '" onclick="selectCat(-1)">'
+        + '<span>全部</span><span class="cat-count">' + totalCodes() + '</span></div>';
+    data.forEach(function(c, i) {
+        html += '<div class="cat-nav-item' + (activeCat === i ? ' active' : '') + '" onclick="selectCat(' + i + ')">'
+            + '<span><span class="cat-dot ' + c.dot + '" style="display:inline-block;margin-right:8px;vertical-align:middle;"></span>' + c.cat.split(' ')[0] + '</span>'
+            + '<span class="cat-count">' + c.codes.length + '</span></div>';
+    });
+    document.getElementById('catNav').innerHTML = html;
+}
+
+function totalCodes() { var n = 0; data.forEach(function(c) { n += c.codes.length; }); return n; }
+
+function renderContent(filter) {
+    var q = (filter || '').toLowerCase();
+    var html = '';
+
+    if (q) {
+        var hits = [];
+        data.forEach(function(cat) {
+            cat.codes.forEach(function(c) {
+                var str = c.n + ' ' + c.e + ' ' + c.d;
+                if (str.toLowerCase().indexOf(q) !== -1) {
+                    hits.push({cls: cat.cls, n: c.n, e: c.e, d: c.d});
+                }
+            });
+        });
+        html = '<div class="match-count">找到 ' + hits.length + ' 个结果</div><div class="code-grid">';
+        if (!hits.length) {
+            html = '<div class="empty-state"><i class="fas fa-search"></i><p>未找到匹配结果</p></div>';
+        } else {
+            hits.forEach(function(c) { html += card(c.cls, c.n, c.e, c.d); });
+        }
+        html += '</div>';
+    } else {
+        var cats = activeCat === -1 ? data : [data[activeCat]];
+        cats.forEach(function(cat) {
+            html += '<div class="section-title">' + cat.cat + '</div><div class="code-grid">';
+            cat.codes.forEach(function(c) { html += card(cat.cls, c.n, c.e, c.d); });
+            html += '</div>';
+        });
+    }
+
+    document.getElementById('content').innerHTML = html;
+}
+
+function selectCat(i) {
+    activeCat = i;
+    document.getElementById('searchInput').value = '';
+    renderNav();
+    renderContent('');
+}
+
+function onSearch() {
+    renderContent(document.getElementById('searchInput').value);
+}
+
+renderNav();
+renderContent('');
+</script>
+</body>
+</html>

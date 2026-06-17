@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据管理</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='font-awesome.css') }}">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            padding: 16px;
+        }
+        .db-section {
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+        }
+        .db-tabs {
+            display: flex;
+            gap: 0;
+            border-bottom: 2px solid #e0e0e0;
+            padding: 0 16px;
+            background: #fafafa;
+            border-radius: 10px 10px 0 0;
+        }
+        .db-tab {
+            padding: 10px 18px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            background: none;
+            color: #666;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.15s;
+        }
+        .db-tab.active { color: #0078d4; border-bottom-color: #0078d4; }
+        .db-tab:hover { color: #333; }
+        .db-tab .tab-count {
+            display: inline-block;
+            background: #e0e0e0;
+            color: #666;
+            font-size: 10px;
+            padding: 1px 6px;
+            border-radius: 8px;
+            margin-left: 4px;
+        }
+        .db-tab.active .tab-count { background: #e8f0fe; color: #0078d4; }
+        .db-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 16px;
+            border-bottom: 1px solid #f0f0f0;
+            flex-wrap: wrap;
+        }
+        .db-search {
+            display: flex;
+            align-items: center;
+            background: #f5f5f5;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 5px 10px;
+            gap: 6px;
+            flex: 1;
+            min-width: 180px;
+            max-width: 300px;
+        }
+        .db-search:focus-within { border-color: #0078d4; background: #fff; }
+        .db-search i { color: #bbb; font-size: 12px; }
+        .db-search input {
+            border: none;
+            background: none;
+            outline: none;
+            font-size: 13px;
+            width: 100%;
+            color: #333;
+        }
+        .db-btn {
+            padding: 5px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            background: #fff;
+            color: #666;
+            transition: all 0.15s;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .db-btn:hover { background: #f5f5f5; color: #333; }
+        .db-btn.danger { color: #c62828; border-color: #f5b3b3; }
+        .db-btn.danger:hover { background: #fde8e8; }
+        .db-btn.primary { background: #0078d4; color: #fff; border-color: #0078d4; }
+        .db-btn.primary:hover { background: #006cbd; }
+        .db-table-wrap { overflow-x: auto; }
+        .db-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+        .db-table th {
+            text-align: left;
+            padding: 8px 12px;
+            color: #999;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-size: 11px;
+            border-bottom: 1px solid #e0e0e0;
+            background: #fafafa;
+            white-space: nowrap;
+        }
+        .db-table td {
+            padding: 7px 12px;
+            border-bottom: 1px solid #f0f0f0;
+            color: #555;
+            max-width: 280px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .db-table tr:hover td { background: #f8f9fa; }
+        .db-table .col-check { width: 36px; text-align: center; }
+        .db-table .col-actions { width: 80px; text-align: center; white-space: nowrap; }
+        .db-table .action-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #999;
+            font-size: 13px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            transition: all 0.15s;
+        }
+        .db-table .action-btn:hover { color: #0078d4; background: #e8f0fe; }
+        .db-table .action-btn.del:hover { color: #c62828; background: #fde8e8; }
+        .db-pagination {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 16px;
+            font-size: 12px;
+            color: #999;
+            border-top: 1px solid #f0f0f0;
+        }
+        .db-pagination .page-btns { display: flex; gap: 4px; }
+        .db-pagination .page-btn {
+            padding: 4px 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: #fff;
+            color: #666;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .db-pagination .page-btn:hover { background: #f0f0f0; }
+        .db-pagination .page-btn.active { background: #0078d4; color: #fff; border-color: #0078d4; }
+        .db-pagination .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .db-empty {
+            text-align: center;
+            padding: 40px;
+            color: #ccc;
+            font-size: 14px;
+        }
+        /* 弹窗 */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.3);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay.show { display: flex; }
+        .modal-box {
+            background: #fff;
+            border-radius: 12px;
+            padding: 24px;
+            width: 480px;
+            max-width: 90vw;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+        }
+        .modal-box h3 {
+            font-size: 16px;
+            margin-bottom: 16px;
+        }
+        .modal-form .form-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .modal-form .form-row label {
+            width: 100px;
+            font-size: 13px;
+            color: #666;
+            text-align: right;
+            padding-right: 12px;
+            flex-shrink: 0;
+        }
+        .modal-form .form-row input,
+        .modal-form .form-row select {
+            flex: 1;
+            padding: 7px 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 13px;
+            outline: none;
+        }
+        .modal-form .form-row input:focus,
+        .modal-form .form-row select:focus { border-color: #0078d4; }
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-top: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="db-section">
+        <div class="db-tabs">
+            <button class="db-tab active" data-table="api_calls" onclick="switchDbTab('api_calls', this)">
+                <i class="fas fa-chart-bar"></i> 接口调用记录 <span class="tab-count" id="cnt-api_calls">0</span>
+            </button>
+            <button class="db-tab" data-table="search_history" onclick="switchDbTab('search_history', this)">
+                <i class="fas fa-search"></i> 搜索历史 <span class="tab-count" id="cnt-search_history">0</span>
+            </button>
+            <button class="db-tab" data-table="recent_paths" onclick="switchDbTab('recent_paths', this)">
+                <i class="fas fa-folder"></i> 最近路径 <span class="tab-count" id="cnt-recent_paths">0</span>
+            </button>
+        </div>
+        <div class="db-toolbar">
+            <div class="db-search">
+                <i class="fas fa-search"></i>
+                <input type="text" id="dbSearchInput" placeholder="搜索..." oninput="onDbSearch()">
+            </div>
+            <button class="db-btn primary" onclick="openAddModal()"><i class="fas fa-folder-plus"></i> 新增</button>
+            <button class="db-btn danger" onclick="batchDelete()"><i class="fas fa-trash"></i> 删除选中</button>
+            <button class="db-btn danger" onclick="clearAll()"><i class="fas fa-trash"></i> 清空</button>
+        </div>
+        <div class="db-table-wrap">
+            <table class="db-table" id="db-table">
+                <thead id="db-thead"></thead>
+                <tbody id="db-tbody"></tbody>
+            </table>
+        </div>
+        <div class="db-empty" id="db-empty" style="display:none;">暂无数据</div>
+        <div class="db-pagination">
+            <span id="db-page-info">共 0 条</span>
+            <div class="page-btns" id="db-page-btns"></div>
+        </div>
+    </div>
+
+    <!-- 编辑弹窗 -->
+    <div class="modal-overlay" id="editModal">
+        <div class="modal-box">
+            <h3 id="modalTitle">新增记录</h3>
+            <div class="modal-form" id="modalForm"></div>
+            <div class="modal-actions">
+                <button class="db-btn" onclick="closeModal()">取消</button>
+                <button class="db-btn primary" onclick="saveRecord()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        var dbCurrentTable = 'api_calls';
+        var dbCurrentPage = 1;
+        var dbPageSize = 20;
+        var dbSearchTimer = null;
+        var dbEditingId = null;
+
+        var TABLE_CONFIG = {
+            api_calls: {
+                label: '接口调用记录',
+                columns: [
+                    { key: 'id', label: 'ID', width: '50px', editable: false },
+                    { key: 'endpoint', label: '接口', editable: true },
+                    { key: 'method', label: '方法', editable: true, type: 'select', options: ['GET','POST','PUT','DELETE'] },
+                    { key: 'status_code', label: '状态码', editable: true, type: 'number' },
+                    { key: 'duration_ms', label: '耗时(ms)', editable: true, type: 'number' },
+                    { key: 'called_at', label: '调用时间', editable: true }
+                ]
+            },
+            search_history: {
+                label: '搜索历史',
+                columns: [
+                    { key: 'id', label: 'ID', width: '50px', editable: false },
+                    { key: 'keyword', label: '关键词', editable: true },
+                    { key: 'root_path', label: '根路径', editable: true },
+                    { key: 'result_count', label: '结果数', editable: true, type: 'number' },
+                    { key: 'searched_at', label: '搜索时间', editable: true }
+                ]
+            },
+            recent_paths: {
+                label: '最近路径',
+                columns: [
+                    { key: 'id', label: 'ID', width: '50px', editable: false },
+                    { key: 'path', label: '路径', editable: true },
+                    { key: 'last_used', label: '最后使用', editable: true }
+                ]
+            }
+        };
+
+        function switchDbTab(table, btn) {
+            dbCurrentTable = table;
+            dbCurrentPage = 1;
+            document.getElementById('dbSearchInput').value = '';
+            document.querySelectorAll('.db-tab').forEach(function(t) { t.classList.remove('active'); });
+            btn.classList.add('active');
+            loadDbData();
+        }
+
+        function onDbSearch() {
+            clearTimeout(dbSearchTimer);
+            dbCurrentPage = 1;
+            dbSearchTimer = setTimeout(loadDbData, 300);
+        }
+
+        async function loadDbData() {
+            var search = document.getElementById('dbSearchInput').value.trim();
+            var url = '/api/db/' + dbCurrentTable + '?page=' + dbCurrentPage + '&page_size=' + dbPageSize;
+            if (search) url += '&search=' + encodeURIComponent(search);
+            try {
+                var res = await fetch(url);
+                var data = await res.json();
+                if (!data.success) return;
+                renderDbTable(data.rows, data.total);
+                renderDbPagination(data.total, data.page, data.page_size);
+                updateDbCounts();
+            } catch (e) { console.error('加载数据失败:', e); }
+        }
+
+        async function updateDbCounts() {
+            try {
+                var res = await fetch('/api/db/tables');
+                var data = await res.json();
+                data.tables.forEach(function(t) {
+                    var el = document.getElementById('cnt-' + t.table);
+                    if (el) el.textContent = t.count;
+                });
+            } catch (e) {}
+        }
+
+        function renderDbTable(rows, total) {
+            var cfg = TABLE_CONFIG[dbCurrentTable];
+            var thead = document.getElementById('db-thead');
+            var tbody = document.getElementById('db-tbody');
+            var emptyEl = document.getElementById('db-empty');
+
+            var ths = '<tr><th class="col-check"><input type="checkbox" id="dbCheckAll" onchange="toggleAllCheck(this)"></th>';
+            cfg.columns.forEach(function(c) {
+                ths += '<th' + (c.width ? ' style="width:' + c.width + '"' : '') + '>' + c.label + '</th>';
+            });
+            ths += '<th class="col-actions">操作</th></tr>';
+            thead.innerHTML = ths;
+
+            if (!rows.length) {
+                tbody.innerHTML = '';
+                emptyEl.style.display = 'block';
+                return;
+            }
+            emptyEl.style.display = 'none';
+
+            tbody.innerHTML = rows.map(function(row) {
+                var tds = '<tr><td class="col-check"><input type="checkbox" class="db-row-check" value="' + row.id + '"></td>';
+                cfg.columns.forEach(function(c) {
+                    var v = row[c.key] != null ? row[c.key] : '';
+                    tds += '<td title="' + escapeHtml(String(v)) + '">' + escapeHtml(String(v)) + '</td>';
+                });
+                tds += '<td class="col-actions">'
+                    + '<button class="action-btn" onclick="openEditModal(' + row.id + ')" title="编辑"><i class="fas fa-pen"></i></button> '
+                    + '<button class="action-btn del" onclick="deleteOne(' + row.id + ')" title="删除"><i class="fas fa-trash"></i></button>'
+                    + '</td></tr>';
+                return tds;
+            }).join('');
+        }
+
+        function escapeHtml(s) {
+            return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+
+        function renderDbPagination(total, page, pageSize) {
+            var totalPages = Math.ceil(total / pageSize) || 1;
+            document.getElementById('db-page-info').textContent = '共 ' + total + ' 条，第 ' + page + '/' + totalPages + ' 页';
+            var btns = '';
+            btns += '<button class="page-btn" onclick="goDbPage(1)" ' + (page <= 1 ? 'disabled' : '') + '>首页</button>';
+            btns += '<button class="page-btn" onclick="goDbPage(' + (page - 1) + ')" ' + (page <= 1 ? 'disabled' : '') + '>上一页</button>';
+            var start = Math.max(1, page - 2);
+            var end = Math.min(totalPages, start + 4);
+            for (var i = start; i <= end; i++) {
+                btns += '<button class="page-btn' + (i === page ? ' active' : '') + '" onclick="goDbPage(' + i + ')">' + i + '</button>';
+            }
+            btns += '<button class="page-btn" onclick="goDbPage(' + (page + 1) + ')" ' + (page >= totalPages ? 'disabled' : '') + '>下一页</button>';
+            btns += '<button class="page-btn" onclick="goDbPage(' + totalPages + ')" ' + (page >= totalPages ? 'disabled' : '') + '>末页</button>';
+            document.getElementById('db-page-btns').innerHTML = btns;
+        }
+
+        function goDbPage(p) {
+            dbCurrentPage = p;
+            loadDbData();
+        }
+
+        function toggleAllCheck(el) {
+            document.querySelectorAll('.db-row-check').forEach(function(cb) { cb.checked = el.checked; });
+        }
+
+        function openAddModal() {
+            dbEditingId = null;
+            document.getElementById('modalTitle').textContent = '新增记录';
+            buildModalForm(null);
+            document.getElementById('editModal').classList.add('show');
+        }
+
+        async function openEditModal(id) {
+            dbEditingId = id;
+            document.getElementById('modalTitle').textContent = '编辑记录 #' + id;
+            var search = document.getElementById('dbSearchInput').value.trim();
+            var url = '/api/db/' + dbCurrentTable + '?page=' + dbCurrentPage + '&page_size=' + dbPageSize;
+            if (search) url += '&search=' + encodeURIComponent(search);
+            try {
+                var res = await fetch(url);
+                var data = await res.json();
+                var row = data.rows.find(function(r) { return r.id === id; });
+                buildModalForm(row);
+                document.getElementById('editModal').classList.add('show');
+            } catch (e) {}
+        }
+
+        function buildModalForm(row) {
+            var cfg = TABLE_CONFIG[dbCurrentTable];
+            var html = '';
+            cfg.columns.forEach(function(c) {
+                if (c.key === 'id') return;
+                var val = row ? (row[c.key] != null ? row[c.key] : '') : '';
+                html += '<div class="form-row"><label>' + c.label + '</label>';
+                if (c.type === 'select') {
+                    html += '<select data-col="' + c.key + '">';
+                    c.options.forEach(function(opt) {
+                        html += '<option value="' + opt + '"' + (val === opt ? ' selected' : '') + '>' + opt + '</option>';
+                    });
+                    html += '</select>';
+                } else {
+                    html += '<input type="' + (c.type || 'text') + '" data-col="' + c.key + '" value="' + escapeHtml(String(val)) + '">';
+                }
+                html += '</div>';
+            });
+            document.getElementById('modalForm').innerHTML = html;
+        }
+
+        function closeModal() {
+            document.getElementById('editModal').classList.remove('show');
+        }
+
+        async function saveRecord() {
+            var cfg = TABLE_CONFIG[dbCurrentTable];
+            var data = {};
+            cfg.columns.forEach(function(c) {
+                if (c.key === 'id') return;
+                var el = document.querySelector('#modalForm [data-col="' + c.key + '"]');
+                if (el) data[c.key] = el.value;
+            });
+            var url, method;
+            if (dbEditingId) {
+                url = '/api/db/' + dbCurrentTable + '/' + dbEditingId;
+                method = 'PUT';
+            } else {
+                url = '/api/db/' + dbCurrentTable;
+                method = 'POST';
+            }
+            try {
+                var res = await fetch(url, { method: method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) });
+                var result = await res.json();
+                if (result.success) {
+                    closeModal();
+                    loadDbData();
+                } else {
+                    alert(result.error || '操作失败');
+                }
+            } catch (e) { alert('请求失败: ' + e.message); }
+        }
+
+        async function deleteOne(id) {
+            if (!confirm('确定删除记录 #' + id + '？')) return;
+            try {
+                var res = await fetch('/api/db/' + dbCurrentTable + '/' + id, { method: 'DELETE' });
+                var data = await res.json();
+                if (data.success) loadDbData();
+            } catch (e) {}
+        }
+
+        async function batchDelete() {
+            var ids = [];
+            document.querySelectorAll('.db-row-check:checked').forEach(function(cb) { ids.push(parseInt(cb.value)); });
+            if (!ids.length) { alert('请先选择要删除的记录'); return; }
+            if (!confirm('确定删除选中的 ' + ids.length + ' 条记录？')) return;
+            try {
+                var res = await fetch('/api/db/' + dbCurrentTable + '/delete-batch', {
+                    method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ids: ids})
+                });
+                var data = await res.json();
+                if (data.success) loadDbData();
+            } catch (e) {}
+        }
+
+        async function clearAll() {
+            var cfg = TABLE_CONFIG[dbCurrentTable];
+            if (!confirm('确定清空「' + cfg.label + '」的所有数据？此操作不可撤销！')) return;
+            try {
+                var res = await fetch('/api/db/' + dbCurrentTable + '/clear', { method: 'POST' });
+                var data = await res.json();
+                if (data.success) loadDbData();
+            } catch (e) {}
+        }
+
+        loadDbData();
+    </script>
+</body>
+</html>

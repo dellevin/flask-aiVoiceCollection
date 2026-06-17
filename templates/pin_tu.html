@@ -1,0 +1,1622 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% if mode == 'index' %}文件浏览器{% else %}{{ current_path_name }}{% endif %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='font-awesome.css') }}">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            min-height: 100vh;
+        }
+
+        /* ===== 入口页 ===== */
+        .index-page {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .index-card {
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 12px;
+            padding: 40px;
+            width: 100%;
+            max-width: 560px;
+        }
+        .index-card h2 { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+        .index-card .desc { font-size: 13px; color: #999; margin-bottom: 24px; }
+        .index-card label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 8px;
+        }
+        .path-input-wrap { display: flex; gap: 8px; }
+        .path-input-wrap input {
+            flex: 1;
+            padding: 10px 14px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .path-input-wrap input:focus { border-color: #0078d4; box-shadow: 0 0 0 3px rgba(0,120,212,0.1); }
+        .path-input-wrap input::placeholder { color: #bbb; }
+        .btn-go {
+            padding: 10px 24px;
+            background: #0078d4;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            white-space: nowrap;
+        }
+        .btn-go:hover { background: #006cbd; }
+        .recent-list { margin-top: 20px; }
+        .recent-list .recent-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 8px;
+        }
+        .recent-item {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            color: #555;
+            transition: background 0.15s;
+            gap: 8px;
+        }
+        .recent-item:hover { background: #f0f0f0; }
+        .recent-item i { color: #0078d4; font-size: 12px; }
+        .recent-item .path-text {
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .recent-item .del-btn {
+            color: #ccc;
+            font-size: 12px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .recent-item .del-btn:hover { color: #c62828; background: #fce4ec; }
+        .error-hint { color: #c62828; font-size: 12px; margin-top: 8px; display: none; }
+
+        /* 自定义确认弹窗 */
+        .confirm-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.4);
+            display: flex; justify-content: center; align-items: center;
+            z-index: 10000; opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+        }
+        .confirm-overlay.active { opacity: 1; pointer-events: auto; }
+        .confirm-card {
+            background: #fff; border-radius: 14px; padding: 28px 32px;
+            width: 360px; max-width: 90vw; text-align: center;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.2);
+            transform: scale(0.9); transition: transform 0.2s ease;
+        }
+        .confirm-overlay.active .confirm-card { transform: scale(1); }
+        .confirm-icon {
+            width: 48px; height: 48px; border-radius: 50%;
+            background: #fff3e0; color: #e65100;
+            display: inline-flex; align-items: center; justify-content: center;
+            font-size: 22px; margin-bottom: 14px;
+        }
+        .confirm-title { font-size: 16px; font-weight: 600; color: #333; margin-bottom: 8px; }
+        .confirm-msg { font-size: 13px; color: #888; margin-bottom: 24px; line-height: 1.5; }
+        .confirm-btns { display: flex; gap: 10px; justify-content: center; }
+        .confirm-btns button {
+            flex: 1; padding: 10px 20px; border: none; border-radius: 8px;
+            font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.15s;
+        }
+        .confirm-cancel { background: #f0f0f0; color: #666; }
+        .confirm-cancel:hover { background: #e0e0e0; }
+        .confirm-ok { background: #c62828; color: #fff; }
+        .confirm-ok:hover { background: #b71c1c; }
+
+        /* ===== 浏览页 ===== */
+        .address-bar {
+            display: flex;
+            align-items: center;
+            background: #fff;
+            border-bottom: 1px solid #e0e0e0;
+            padding: 10px 20px;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+        .address-bar a, .address-bar span.current {
+            padding: 5px 10px;
+            border-radius: 6px;
+            font-size: 13px;
+            color: #555;
+            text-decoration: none;
+            transition: all 0.15s;
+        }
+        .address-bar a:hover { background: #f0f0f0; color: #333; }
+        .address-bar span.current { color: #333; font-weight: 600; }
+        .address-bar .sep { color: #ccc; font-size: 12px; padding: 0 2px; user-select: none; }
+        .address-bar .home-btn { font-size: 15px; padding: 5px 10px; color: #0078d4; }
+        .address-bar .home-btn:hover { background: #e8f0fe; }
+
+        .toolbar {
+            display: flex;
+            align-items: center;
+            padding: 10px 20px;
+            background: #fff;
+            border-bottom: 1px solid #e0e0e0;
+            gap: 8px;
+        }
+        .mode-btn {
+            padding: 6px 14px;
+            border: 1px solid #ddd;
+            background: #fff;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            text-decoration: none;
+            color: #666;
+            transition: all 0.15s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .mode-btn:hover { background: #f0f0f0; color: #333; }
+        .mode-btn.active { background: #0078d4; color: #fff; border-color: #0078d4; }
+        .toolbar-info { margin-left: auto; font-size: 12px; color: #999; }
+
+        .main-content { padding: 20px; max-width: 1400px; margin: 0 auto; }
+        .section { margin-bottom: 24px; }
+        .section-title {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .section-title .count { color: #999; font-weight: 400; text-transform: none; letter-spacing: 0; }
+
+        .empty-state { text-align: center; padding: 60px 20px; color: #ccc; }
+        .empty-state i { font-size: 48px; margin-bottom: 16px; display: block; }
+        .empty-state p { font-size: 14px; }
+
+        .grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+        .grid-item {
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 14px 10px 12px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow: hidden;
+        }
+        .grid-item:hover { border-color: #0078d4; background: #f0f8ff; box-shadow: 0 4px 12px rgba(0,120,212,0.1); transform: translateY(-2px); }
+        .grid-item .icon { font-size: 44px; margin-bottom: 10px; line-height: 1; color: #ffb300; }
+        .grid-item .icon .fa-video { color: #e53935; }
+        .grid-item img.thumb { width: 100%; height: 100px; object-fit: cover; border-radius: 8px; margin-bottom: 10px; border: 1px solid #eee; }
+        .grid-item .name {
+            font-size: 12px;
+            word-break: break-all;
+            line-height: 1.4;
+            max-height: 2.8em;
+            overflow: hidden;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            color: #555;
+        }
+
+        .list-container { background: #fff; border: 1px solid #e0e0e0; border-radius: 10px; overflow: hidden; }
+        .list-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 16px;
+            border-bottom: 1px solid #f0f0f0;
+            text-decoration: none;
+            color: #333;
+            transition: background 0.15s;
+        }
+        .list-item:last-child { border-bottom: none; }
+        .list-item:hover { background: #f8f9fa; }
+        .list-item .icon { font-size: 22px; margin-right: 14px; width: 28px; text-align: center; flex-shrink: 0; color: #ffb300; }
+        .list-item .icon .fa-video { color: #e53935; }
+        .list-item .thumb { width: 40px; height: 40px; object-fit: cover; border-radius: 6px; margin-right: 14px; flex-shrink: 0; border: 1px solid #eee; }
+        .list-item .info { flex: 1; min-width: 0; }
+        .list-item .name { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .list-item .type { font-size: 12px; color: #999; margin-top: 2px; }
+
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.88);
+            display: flex; justify-content: center; align-items: center;
+            z-index: 9999; padding: 20px;
+            opacity: 0; pointer-events: none; transition: opacity 0.25s ease;
+        }
+        .modal-overlay.active { opacity: 1; pointer-events: auto; }
+
+        .modal-close {
+            position: absolute; top: 12px; right: 12px;
+            color: #fff; font-size: 28px; cursor: pointer;
+            width: 40px; height: 40px;
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 50%; background: rgba(255,255,255,0.1);
+            transition: background 0.2s; user-select: none; z-index: 2;
+        }
+        .modal-close:hover { background: rgba(255,255,255,0.25); }
+        .img-trigger, .video-trigger { cursor: pointer; }
+
+        /* 图片弹窗 - 左右布局 */
+        .img-modal-layout {
+            display: flex;
+            width: 92vw;
+            max-width: 1200px;
+            height: 82vh;
+            position: relative;
+            border-radius: 12px;
+            overflow: hidden;
+            background: #000;
+        }
+        .img-modal-left {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #111;
+            min-width: 0;
+            overflow: hidden;
+        }
+        .img-modal-left img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        .img-modal-right {
+            width: 280px;
+            flex-shrink: 0;
+            background: #1a1a1a;
+            padding: 24px 20px;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+        .img-info-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: #fff;
+            word-break: break-all;
+            margin-bottom: 20px;
+            line-height: 1.4;
+        }
+        .img-info-section {
+            background: rgba(255,255,255,0.06);
+            border-radius: 8px;
+            padding: 12px 14px;
+            margin-bottom: 16px;
+        }
+        .img-info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 5px 0;
+            font-size: 12px;
+        }
+        .img-info-row + .img-info-row { border-top: 1px solid rgba(255,255,255,0.06); }
+        .img-info-label { color: rgba(255,255,255,0.4); }
+        .img-info-value { color: rgba(255,255,255,0.85); text-align: right; max-width: 60%; word-break: break-all; }
+        .btn-img-download {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 10px 16px;
+            background: #0078d4;
+            color: #fff;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: background 0.2s;
+            margin-top: auto;
+        }
+        .btn-img-download:hover { background: #006cbd; }
+
+        /* 视频弹窗 - 左右布局 */
+        .video-modal-layout {
+            display: flex;
+            width: 92vw;
+            max-width: 1200px;
+            height: 82vh;
+            position: relative;
+            border-radius: 12px;
+            overflow: hidden;
+            background: #000;
+        }
+        .video-modal-left {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #000;
+            position: relative;
+            min-width: 0;
+        }
+        .video-modal-left video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        .play-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            background: rgba(0,0,0,0.3);
+            transition: background 0.2s;
+        }
+        .play-overlay:hover { background: rgba(0,0,0,0.15); }
+        .play-overlay i {
+            font-size: 56px;
+            color: rgba(255,255,255,0.9);
+            width: 80px; height: 80px;
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.15);
+            backdrop-filter: blur(4px);
+        }
+        .play-overlay.hidden { display: none; }
+        .video-modal-right {
+            width: 260px;
+            flex-shrink: 0;
+            background: #1a1a1a;
+            padding: 24px 20px;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+        .video-info-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: #fff;
+            word-break: break-all;
+            margin-bottom: 20px;
+            line-height: 1.4;
+        }
+        .video-info-section {
+            background: rgba(255,255,255,0.06);
+            border-radius: 8px;
+            padding: 12px 14px;
+            margin-bottom: 16px;
+        }
+        .video-info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 5px 0;
+            font-size: 12px;
+        }
+        .video-info-row + .video-info-row { border-top: 1px solid rgba(255,255,255,0.06); }
+        .video-info-label { color: rgba(255,255,255,0.4); }
+        .video-info-value { color: rgba(255,255,255,0.85); text-align: right; }
+        .btn-video-download {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 10px 16px;
+            background: #0078d4;
+            color: #fff;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: background 0.2s;
+            margin-top: auto;
+        }
+        .btn-video-download:hover { background: #006cbd; }
+
+        /* 搜索 */
+        .search-wrap {
+            position: relative;
+            margin-left: auto;
+        }
+        .search-input-wrap {
+            display: flex;
+            align-items: center;
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 5px 10px;
+            gap: 6px;
+            transition: border-color 0.2s;
+        }
+        .search-input-wrap:focus-within { border-color: #0078d4; }
+        .search-input-wrap i { color: #999; font-size: 13px; }
+        .search-input-wrap input {
+            border: none;
+            background: none;
+            outline: none;
+            font-size: 13px;
+            width: 180px;
+            color: #333;
+        }
+        .search-input-wrap input::placeholder { color: #bbb; }
+        .search-results {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            min-width: 340px;
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+            max-height: 400px;
+            overflow-y: auto;
+            z-index: 100;
+            display: none;
+            margin-top: 4px;
+        }
+        .search-results.show { display: block; }
+        .search-result-item {
+            display: flex;
+            align-items: center;
+            padding: 9px 14px;
+            cursor: pointer;
+            transition: background 0.12s;
+            gap: 10px;
+            text-decoration: none;
+            color: #333;
+        }
+        .search-result-item:hover { background: #f0f8ff; }
+        .search-result-item .sr-icon {
+            font-size: 16px;
+            width: 20px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+        .search-result-item .sr-icon.folder { color: #ffb300; }
+        .search-result-item .sr-icon.file { color: #999; }
+        .search-result-item .sr-info { flex: 1; min-width: 0; }
+        .search-result-item .sr-name { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .search-result-item .sr-path { font-size: 11px; color: #999; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .search-empty { padding: 20px; text-align: center; color: #ccc; font-size: 13px; }
+
+        /* 重命名弹窗 */
+        .rename-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.4);
+            display: flex; justify-content: center; align-items: center;
+            z-index: 10001; opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+        }
+        .rename-overlay.active { opacity: 1; pointer-events: auto; }
+        .rename-card {
+            background: #fff; border-radius: 14px; padding: 28px 32px;
+            width: 420px; max-width: 90vw;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.2);
+            transform: scale(0.9); transition: transform 0.2s ease;
+        }
+        .rename-overlay.active .rename-card { transform: scale(1); }
+        .rename-card-icon {
+            width: 48px; height: 48px; border-radius: 50%;
+            background: #e8f0fe; color: #0078d4;
+            display: inline-flex; align-items: center; justify-content: center;
+            font-size: 20px; margin-bottom: 14px;
+        }
+        .rename-card-title { font-size: 16px; font-weight: 600; color: #333; margin-bottom: 18px; }
+        .rename-card-label { font-size: 12px; color: #999; margin-bottom: 6px; font-weight: 600; }
+        .rename-card-input {
+            width: 100%; padding: 10px 14px; border: 1px solid #ddd;
+            border-radius: 8px; font-size: 14px; outline: none;
+            transition: border-color 0.2s;
+        }
+        .rename-card-input:focus { border-color: #0078d4; box-shadow: 0 0 0 3px rgba(0,120,212,0.1); }
+        .rename-card-btns { display: flex; gap: 10px; margin-top: 20px; }
+        .rename-card-btns button {
+            flex: 1; padding: 10px 20px; border: none; border-radius: 8px;
+            font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.15s;
+        }
+        .rename-card-cancel { background: #f0f0f0; color: #666; }
+        .rename-card-cancel:hover { background: #e0e0e0; }
+        .rename-card-ok { background: #0078d4; color: #fff; }
+        .rename-card-ok:hover { background: #006cbd; }
+        .rename-card-error { color: #c62828; font-size: 12px; margin-top: 8px; display: none; }
+
+        /* 操作按钮（移动等） */
+        .btn-action-trigger {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background: #fff;
+            font-size: 12px;
+            color: #666;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .btn-action-trigger:hover { background: #f0f0f0; color: #333; }
+        .btn-delete-trigger {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background: #fff;
+            font-size: 12px;
+            color: #999;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .btn-delete-trigger:hover { background: #fce4ec; color: #c62828; border-color: #ef9a9a; }
+
+        /* 移动弹窗 */
+        .move-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.4);
+            display: flex; justify-content: center; align-items: center;
+            z-index: 10001; opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+        }
+        .move-overlay.active { opacity: 1; pointer-events: auto; }
+        .move-card {
+            background: #fff; border-radius: 14px; padding: 0;
+            width: 480px; max-width: 90vw; height: 500px; max-height: 80vh;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.2);
+            transform: scale(0.9); transition: transform 0.2s ease;
+            display: flex; flex-direction: column; overflow: hidden;
+        }
+        .move-overlay.active .move-card { transform: scale(1); }
+        .move-header {
+            padding: 18px 24px; border-bottom: 1px solid #e0e0e0;
+            display: flex; align-items: center; gap: 12px; flex-shrink: 0;
+        }
+        .move-header-icon {
+            width: 36px; height: 36px; border-radius: 8px;
+            background: #e8f0fe; color: #0078d4;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 16px; flex-shrink: 0;
+        }
+        .move-header-text { flex: 1; }
+        .move-header-title { font-size: 15px; font-weight: 600; color: #333; }
+        .move-header-item { font-size: 12px; color: #999; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .move-breadcrumb {
+            padding: 10px 24px; border-bottom: 1px solid #f0f0f0;
+            font-size: 12px; color: #999; display: flex; align-items: center;
+            gap: 4px; flex-wrap: wrap; flex-shrink: 0; background: #fafafa;
+        }
+        .move-breadcrumb span { cursor: pointer; color: #0078d4; padding: 2px 6px; border-radius: 4px; transition: background 0.12s; }
+        .move-breadcrumb span:hover { background: #e8f0fe; }
+        .move-breadcrumb .mb-current { color: #333; font-weight: 600; cursor: default; }
+        .move-breadcrumb .mb-current:hover { background: none; }
+        .move-breadcrumb .mb-sep { color: #ccc; cursor: default; }
+        .move-breadcrumb .mb-sep:hover { background: none; }
+        .move-list {
+            flex: 1; overflow-y: auto; padding: 8px 16px;
+        }
+        .move-folder-item {
+            display: flex; align-items: center; padding: 10px 12px;
+            border-radius: 8px; cursor: pointer; transition: background 0.12s;
+            gap: 10px; font-size: 13px; color: #333;
+        }
+        .move-folder-item:hover { background: #f0f8ff; }
+        .move-folder-item .mfi-icon { color: #ffb300; font-size: 18px; width: 24px; text-align: center; }
+        .move-folder-item .mfi-name { flex: 1; }
+        .move-folder-item .mfi-arrow { color: #ccc; font-size: 12px; }
+        .move-empty { text-align: center; padding: 40px; color: #ccc; font-size: 13px; }
+        .move-footer {
+            padding: 14px 24px; border-top: 1px solid #e0e0e0;
+            display: flex; gap: 10px; flex-shrink: 0;
+        }
+        .move-footer button {
+            flex: 1; padding: 10px; border: none; border-radius: 8px;
+            font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.15s;
+        }
+        .move-cancel { background: #f0f0f0; color: #666; }
+        .move-cancel:hover { background: #e0e0e0; }
+        .move-confirm { background: #0078d4; color: #fff; }
+        .move-confirm:hover { background: #006cbd; }
+        .move-confirm:disabled { background: #ccc; cursor: not-allowed; }
+        .move-error { color: #c62828; font-size: 12px; padding: 0 24px 8px; display: none; }
+        .btn-rename-trigger {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background: #fff;
+            font-size: 12px;
+            color: #666;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .btn-rename-trigger:hover { background: #f0f0f0; color: #333; }
+
+        .manga-container { display: flex; flex-direction: column; align-items: center; background: #111; border-radius: 10px; overflow: hidden; }
+        .manga-item { width: 100%; max-width: 900px; line-height: 0; }
+        .manga-item img { width: 100%; height: auto; display: block; border: none; margin: 0; padding: 0; }
+
+        /* 文件信息弹窗 */
+        .file-modal-content {
+            background: #fff;
+            border-radius: 14px;
+            padding: 32px;
+            width: 380px;
+            max-width: 90vw;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            box-shadow: 0 16px 48px rgba(0,0,0,0.3);
+        }
+        .file-modal-content .modal-close {
+            position: absolute;
+            top: 12px; right: 12px;
+            color: #999;
+            background: none;
+        }
+        .file-modal-content .modal-close:hover { color: #333; background: #f0f0f0; }
+        .file-modal-icon {
+            width: 64px; height: 64px;
+            border-radius: 14px;
+            background: #f0f0f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            color: #999;
+            margin-bottom: 16px;
+        }
+        .file-modal-name {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 20px;
+            text-align: center;
+            word-break: break-all;
+            max-width: 100%;
+        }
+        .file-modal-info {
+            width: 100%;
+            background: #fafafa;
+            border-radius: 10px;
+            padding: 14px 18px;
+            margin-bottom: 20px;
+        }
+        .file-info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 6px 0;
+            font-size: 13px;
+            color: #555;
+        }
+        .file-info-row + .file-info-row { border-top: 1px solid #f0f0f0; }
+        .file-info-label { color: #999; flex-shrink: 0; margin-right: 12px; }
+        .btn-download {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 28px;
+            background: #0078d4;
+            color: #fff;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: background 0.2s;
+        }
+        .btn-download:hover { background: #006cbd; }
+        .file-trigger { cursor: pointer; }
+    </style>
+</head>
+<body>
+
+{% if mode == 'index' %}
+<!-- ===== 入口页 ===== -->
+<div class="index-page">
+    <div class="index-card">
+        <h2><i class="fas fa-images" style="color:#0078d4;margin-right:8px;"></i> 文件浏览器</h2>
+        <p class="desc">输入本地路径或网络共享路径，浏览图片和视频</p>
+        <label for="pathInput">浏览路径</label>
+        <div class="path-input-wrap">
+            <input type="text" id="pathInput" value="\\192.168.31.92\ubuntuShare2T\学习资料" placeholder="例如: D:\UserData\Downloads 或 \\192.168.31.92\share\资料">
+            <button class="btn-go" onclick="goBrowse()">打开</button>
+        </div>
+        <div class="error-hint" id="errorHint">路径不能为空</div>
+        <div class="recent-list" id="recentList" style="display:none;">
+            <div class="recent-title" style="display:flex;justify-content:space-between;align-items:center;">
+                <span>最近访问</span>
+                <span style="font-size:12px;color:#ccc;cursor:pointer;font-weight:400;text-transform:none;letter-spacing:0;" onclick="clearAllRecent()">清空</span>
+            </div>
+            <div id="recentItems"></div>
+        </div>
+    </div>
+</div>
+
+<!-- 自定义确认弹窗 -->
+<div class="confirm-overlay" id="confirmOverlay">
+    <div class="confirm-card">
+        <div class="confirm-icon"><i class="fas fa-times-circle"></i></div>
+        <div class="confirm-title" id="confirmTitle">确认操作</div>
+        <div class="confirm-msg" id="confirmMsg">确定要执行此操作吗？</div>
+        <div class="confirm-btns">
+            <button class="confirm-cancel" onclick="confirmResolve(false)">取消</button>
+            <button class="confirm-ok" id="confirmOkBtn" onclick="confirmResolve(true)">确定</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let _confirmResolver = null;
+
+    function showConfirm(title, msg, okText) {
+        document.getElementById('confirmTitle').textContent = title || '确认操作';
+        document.getElementById('confirmMsg').textContent = msg || '确定要执行此操作吗？';
+        document.getElementById('confirmOkBtn').textContent = okText || '确定';
+        document.getElementById('confirmOverlay').classList.add('active');
+        return new Promise(function(resolve) { _confirmResolver = resolve; });
+    }
+
+    function confirmResolve(val) {
+        document.getElementById('confirmOverlay').classList.remove('active');
+        if (_confirmResolver) { _confirmResolver(val); _confirmResolver = null; }
+    }
+
+    function pathToB64(path) {
+        const bytes = new TextEncoder().encode(path);
+        let binary = '';
+        bytes.forEach(b => binary += String.fromCharCode(b));
+        return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+
+    async function loadRecent() {
+        try {
+            const res = await fetch('/pin-tu/api/recent-paths');
+            const data = await res.json();
+            const container = document.getElementById('recentList');
+            const items = document.getElementById('recentItems');
+            if (!data.paths || !data.paths.length) { container.style.display = 'none'; return; }
+            container.style.display = 'block';
+            items.innerHTML = data.paths.map(p => {
+                return '<div class="recent-item" onclick="selectRecent(this.dataset.path)" data-path="' + escapeAttr(p.path) + '">' +
+                    '<i class="fas fa-clock"></i>' +
+                    '<span class="path-text">' + escapeText(p.path) + '</span>' +
+                    '<span class="del-btn" onclick="event.stopPropagation();removeRecent(this.parentElement.dataset.path)"><i class="fas fa-times-circle"></i></span>' +
+                '</div>';
+            }).join('');
+        } catch (e) {
+            document.getElementById('recentList').style.display = 'none';
+        }
+    }
+
+    function escapeAttr(s) {
+        return s.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+    function escapeText(s) {
+        return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    async function removeRecent(path) {
+        try {
+            await fetch('/pin-tu/api/recent-paths', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path: path })
+            });
+            loadRecent();
+        } catch (e) {}
+    }
+
+    async function clearAllRecent() {
+        var ok = await showConfirm('清空最近访问', '确定清空所有最近访问记录？此操作不可撤销。', '清空');
+        if (!ok) return;
+        try {
+            await fetch('/pin-tu/api/recent-paths', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ clear: true })
+            });
+            loadRecent();
+        } catch (e) {}
+    }
+
+    function selectRecent(path) {
+        document.getElementById('pathInput').value = path;
+        goBrowse();
+    }
+
+    async function goBrowse() {
+        const path = document.getElementById('pathInput').value.trim();
+        const hint = document.getElementById('errorHint');
+        if (!path) { hint.style.display = 'block'; return; }
+        hint.style.display = 'none';
+        // 记录到数据库
+        try {
+            await fetch('/pin-tu/api/recent-paths', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path: path })
+            });
+        } catch (e) {}
+        window.location.href = '/pin-tu/browse/' + pathToB64(path);
+    }
+    document.getElementById('pathInput').addEventListener('keydown', e => {
+        if (e.key === 'Enter') goBrowse();
+    });
+    loadRecent();
+</script>
+
+{% else %}
+<!-- ===== 浏览页 ===== -->
+<div class="address-bar">
+    <a href="/pin-tu/" class="home-btn" title="返回首页"><i class="fas fa-home"></i></a>
+    <span class="sep">›</span>
+    {% for crumb in breadcrumbs %}
+        {% if not loop.first %}<span class="sep">›</span>{% endif %}
+        {% if loop.last %}
+            <span class="current">{{ crumb.name }}</span>
+        {% else %}
+            <a href="{{ crumb.url }}">{{ crumb.name }}</a>
+        {% endif %}
+    {% endfor %}
+</div>
+
+<div class="toolbar">
+    <a href="?mode=list" class="mode-btn {% if view_mode == 'list' %}active{% endif %}"><i class="fas fa-list"></i> 列表</a>
+    <a href="?mode=grid" class="mode-btn {% if view_mode == 'grid' %}active{% endif %}"><i class="fas fa-th"></i> 网格</a>
+    <a href="/pin-tu/browse/{{ root_b64 }}?p={{ current_subpath | urlencode }}&mode=manga" target="_blank" class="mode-btn"><i class="fas fa-book"></i> 漫画</a>
+    <a href="/pin-tu/search-page/{{ root_b64 }}" class="mode-btn"><i class="fas fa-search"></i> 搜索</a>
+    <button class="mode-btn" onclick="openCreateFolderModal()" style="margin-left:4px;"><i class="fas fa-folder-plus"></i> 新建文件夹</button>
+    <span class="toolbar-info">
+        {% set total = (subfolders|length) + (images|length) + (videos|length) + (files|length) %}
+        {% if total > 0 %}共 {{ total }} 项{% endif %}
+    </span>
+</div>
+
+<div class="main-content">
+    {% set total = (subfolders|length) + (images|length) + (videos|length) + (files|length) %}
+    {% if total == 0 %}
+    <div class="empty-state">
+        <i class="fas fa-folder-open"></i>
+        <p>此文件夹为空</p>
+    </div>
+    {% endif %}
+
+    {% if subfolders %}
+    <div class="section">
+        <div class="section-title"><i class="fas fa-folder"></i> 文件夹 <span class="count">({{ subfolders|length }})</span></div>
+        {% if view_mode == 'grid' %}
+        <div class="grid-container">
+            {% for folder in subfolders %}
+            <a href="/pin-tu/browse/{{ root_b64 }}?p={{ (current_subpath + folder) | urlencode }}&mode={{ view_mode }}" class="grid-item">
+                <div class="icon"><i class="fas fa-folder"></i></div>
+                <div class="name">{{ folder }}</div>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="list-container">
+            {% for folder in subfolders %}
+            <a href="/pin-tu/browse/{{ root_b64 }}?p={{ (current_subpath + folder) | urlencode }}&mode={{ view_mode }}" class="list-item">
+                <div class="icon"><i class="fas fa-folder"></i></div>
+                <div class="info">
+                    <div class="name">{{ folder }}</div>
+                    <div class="type">文件夹</div>
+                </div>
+                <span class="btn-rename-trigger" data-path="{{ current_subpath + folder }}" data-name="{{ folder }}" onclick="event.preventDefault();event.stopPropagation();openRenameModal(this.dataset.name, this.dataset.path, 'folder')"><i class="fas fa-pen"></i></span>
+                <span class="btn-action-trigger" data-path="{{ current_subpath + folder }}" data-name="{{ folder }}" onclick="event.preventDefault();event.stopPropagation();openMoveModal(this.dataset.path, this.dataset.name)" title="移动"><i class="fas fa-exchange-alt"></i></span>
+                <span class="btn-delete-trigger" data-path="{{ current_subpath + folder }}" data-name="{{ folder }}" data-type="folder" onclick="event.preventDefault();event.stopPropagation();submitDelete(this.dataset.path, this.dataset.name, this.dataset.type)" title="删除"><i class="fas fa-trash"></i></span>
+            </a>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if images %}
+    <div class="section">
+        <div class="section-title"><i class="fas fa-images"></i> 图片 <span class="count">({{ images|length }})</span></div>
+        {% if view_mode == 'manga' %}
+        <div class="manga-container">
+            {% for image in images %}
+            <div class="manga-item img-trigger" data-src="/pin-tu/media/{{ root_b64 }}?p={{ (current_subpath + image) | urlencode }}" data-name="{{ image }}" data-path="{{ (current_subpath + image) }}">
+                <img src="/pin-tu/media/{{ root_b64 }}?p={{ (current_subpath + image) | urlencode }}" alt="{{ image }}" loading="lazy">
+            </div>
+            {% endfor %}
+        </div>
+        {% elif view_mode == 'grid' %}
+        <div class="grid-container">
+            {% for image in images %}
+            <div class="grid-item img-trigger" data-src="/pin-tu/media/{{ root_b64 }}?p={{ (current_subpath + image) | urlencode }}" data-name="{{ image }}" data-path="{{ (current_subpath + image) }}">
+                <img class="thumb" src="/pin-tu/media/{{ root_b64 }}?p={{ (current_subpath + image) | urlencode }}" alt="{{ image }}" loading="lazy">
+                <div class="name">{{ image }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="list-container">
+            {% for image in images %}
+            <div class="list-item img-trigger" data-src="/pin-tu/media/{{ root_b64 }}?p={{ (current_subpath + image) | urlencode }}" data-name="{{ image }}" data-path="{{ (current_subpath + image) }}">
+                <img class="thumb" src="/pin-tu/media/{{ root_b64 }}?p={{ (current_subpath + image) | urlencode }}" alt="" loading="lazy">
+                <div class="info">
+                    <div class="name">{{ image }}</div>
+                    <div class="type">图片文件</div>
+                </div>
+                <span class="btn-rename-trigger" data-path="{{ current_subpath + image }}" data-name="{{ image }}" onclick="event.stopPropagation();openRenameModal(this.dataset.name, this.dataset.path, 'list')"><i class="fas fa-pen"></i></span>
+                <span class="btn-action-trigger" data-path="{{ current_subpath + image }}" data-name="{{ image }}" onclick="event.stopPropagation();openMoveModal(this.dataset.path, this.dataset.name)" title="移动"><i class="fas fa-exchange-alt"></i></span>
+                <span class="btn-delete-trigger" data-path="{{ current_subpath + image }}" data-name="{{ image }}" data-type="file" onclick="event.stopPropagation();submitDelete(this.dataset.path, this.dataset.name, this.dataset.type)" title="删除"><i class="fas fa-trash"></i></span>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if videos %}
+    <div class="section">
+        <div class="section-title"><i class="fas fa-video"></i> 视频 <span class="count">({{ videos|length }})</span></div>
+        {% if view_mode == 'grid' %}
+        <div class="grid-container">
+            {% for video in videos %}
+            <div class="grid-item video-trigger" data-src="/pin-tu/media/{{ root_b64 }}?p={{ (current_subpath + video) | urlencode }}" data-name="{{ video }}">
+                <div class="icon"><i class="fas fa-video"></i></div>
+                <div class="name">{{ video }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="list-container">
+            {% for video in videos %}
+            <div class="list-item video-trigger" data-src="/pin-tu/media/{{ root_b64 }}?p={{ (current_subpath + video) | urlencode }}" data-name="{{ video }}">
+                <div class="icon"><i class="fas fa-video"></i></div>
+                <div class="info">
+                    <div class="name">{{ video }}</div>
+                    <div class="type">视频文件</div>
+                </div>
+                <span class="btn-rename-trigger" data-path="{{ current_subpath + video }}" data-name="{{ video }}" onclick="event.stopPropagation();openRenameModal(this.dataset.name, this.dataset.path, 'list')"><i class="fas fa-pen"></i></span>
+                <span class="btn-action-trigger" data-path="{{ current_subpath + video }}" data-name="{{ video }}" onclick="event.stopPropagation();openMoveModal(this.dataset.path, this.dataset.name)" title="移动"><i class="fas fa-exchange-alt"></i></span>
+                <span class="btn-delete-trigger" data-path="{{ current_subpath + video }}" data-name="{{ video }}" data-type="file" onclick="event.stopPropagation();submitDelete(this.dataset.path, this.dataset.name, this.dataset.type)" title="删除"><i class="fas fa-trash"></i></span>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if files %}
+    <div class="section">
+        <div class="section-title"><i class="fas fa-file"></i> 文件 <span class="count">({{ files|length }})</span></div>
+        {% if view_mode == 'grid' %}
+        <div class="grid-container">
+            {% for f in files %}
+            <div class="grid-item file-trigger" data-path="{{ (current_subpath + f) }}" data-name="{{ f }}">
+                <div class="icon"><i class="fas fa-file" style="color:#999;"></i></div>
+                <div class="name">{{ f }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="list-container">
+            {% for f in files %}
+            <div class="list-item file-trigger" data-path="{{ (current_subpath + f) }}" data-name="{{ f }}">
+                <div class="icon"><i class="fas fa-file" style="color:#999;"></i></div>
+                <div class="info">
+                    <div class="name">{{ f }}</div>
+                    <div class="type">{{ f.split('.')[-1] | upper if '.' in f else '文件' }}</div>
+                </div>
+                <span class="btn-rename-trigger" data-path="{{ current_subpath + f }}" data-name="{{ f }}" onclick="event.stopPropagation();openRenameModal(this.dataset.name, this.dataset.path, 'list')"><i class="fas fa-pen"></i></span>
+                <span class="btn-action-trigger" data-path="{{ current_subpath + f }}" data-name="{{ f }}" onclick="event.stopPropagation();openMoveModal(this.dataset.path, this.dataset.name)" title="移动"><i class="fas fa-exchange-alt"></i></span>
+                <span class="btn-delete-trigger" data-path="{{ current_subpath + f }}" data-name="{{ f }}" data-type="file" onclick="event.stopPropagation();submitDelete(this.dataset.path, this.dataset.name, this.dataset.type)" title="删除"><i class="fas fa-trash"></i></span>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<!-- 重命名弹窗 -->
+<div class="rename-overlay" id="renameOverlay">
+    <div class="rename-card">
+        <div class="rename-card-icon"><i class="fas fa-pen"></i></div>
+        <div class="rename-card-title" id="renameTitle">重命名</div>
+        <div class="rename-card-label">新名称</div>
+        <input class="rename-card-input" id="renameInput" placeholder="输入新名称">
+        <div class="rename-card-error" id="renameError"></div>
+        <div class="rename-card-btns">
+            <button class="rename-card-cancel" onclick="closeRenameModal()">取消</button>
+            <button class="rename-card-ok" onclick="submitRename()">确定</button>
+        </div>
+    </div>
+</div>
+
+<!-- 移动弹窗 -->
+<div class="move-overlay" id="moveOverlay">
+    <div class="move-card">
+        <div class="move-header">
+            <div class="move-header-icon"><i class="fas fa-exchange-alt"></i></div>
+            <div class="move-header-text">
+                <div class="move-header-title">移动到</div>
+                <div class="move-header-item" id="moveItemName">-</div>
+            </div>
+        </div>
+        <div class="move-breadcrumb" id="moveBreadcrumb"></div>
+        <div class="move-list" id="moveList">
+            <div class="move-empty">加载中...</div>
+        </div>
+        <div class="move-error" id="moveError"></div>
+        <div class="move-footer">
+            <button class="move-cancel" onclick="closeMoveModal()">取消</button>
+            <button class="move-confirm" id="moveConfirmBtn" onclick="submitMove()">移动到此处</button>
+        </div>
+    </div>
+</div>
+
+<!-- 图片预览弹窗 -->
+<div class="modal-overlay" id="imgModal" onclick="closeImgModal(event)">
+    <div class="img-modal-layout" onclick="event.stopPropagation()">
+        <div class="modal-close" onclick="closeImgModal()">&times;</div>
+        <div class="img-modal-left">
+            <img id="modalImg" alt="">
+        </div>
+        <div class="img-modal-right">
+            <div class="img-info-name" id="imgModalName">-</div>
+            <div class="img-info-section">
+                <div class="img-info-row"><span class="img-info-label">格式</span><span class="img-info-value" id="imgModalType">-</span></div>
+                <div class="img-info-row"><span class="img-info-label">文件大小</span><span class="img-info-value" id="imgModalSize">-</span></div>
+                <div class="img-info-row"><span class="img-info-label">尺寸</span><span class="img-info-value" id="imgModalDimension">-</span></div>
+                <div class="img-info-row"><span class="img-info-label">修改时间</span><span class="img-info-value" id="imgModalTime">-</span></div>
+            </div>
+            <div class="img-info-section">
+                <div class="img-info-row"><span class="img-info-label">路径</span><span class="img-info-value" id="imgModalPath" style="font-size:11px;line-height:1.4;">-</span></div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <button class="btn-rename-trigger" onclick="openRenameModal(document.getElementById('imgModalName').textContent, document.getElementById('imgModal').dataset.filePath, 'img')"><i class="fas fa-pen"></i> 重命名</button>
+                <button class="btn-action-trigger" onclick="openMoveModal(document.getElementById('imgModal').dataset.filePath, document.getElementById('imgModalName').textContent)"><i class="fas fa-exchange-alt"></i> 移动</button>
+                <button class="btn-delete-trigger" onclick="submitDelete(document.getElementById('imgModal').dataset.filePath, document.getElementById('imgModalName').textContent, 'file')"><i class="fas fa-trash"></i> 删除</button>
+            </div>
+            <a class="btn-img-download" id="imgModalDownload" href="#" download style="margin-top:10px;"><i class="fas fa-arrow-left" style="transform:rotate(-90deg);"></i> 下载图片</a>
+        </div>
+    </div>
+</div>
+
+<!-- 视频预览弹窗 -->
+<div class="modal-overlay" id="videoModal" onclick="closeVideoModal(event)">
+    <div class="video-modal-layout" onclick="event.stopPropagation()">
+        <div class="modal-close" onclick="closeVideoModal()">&times;</div>
+        <div class="video-modal-left">
+            <video id="vModalVideo" controls playsinline></video>
+            <div class="play-overlay" id="playOverlay" onclick="startPlay()"><i class="fas fa-play"></i></div>
+        </div>
+        <div class="video-modal-right">
+            <div class="video-info-name" id="vModalName">-</div>
+            <div class="video-info-section">
+                <div class="video-info-row"><span class="video-info-label">类型</span><span class="video-info-value" id="vModalType">-</span></div>
+                <div class="video-info-row"><span class="video-info-label">大小</span><span class="video-info-value" id="vModalSize">-</span></div>
+                <div class="video-info-row"><span class="video-info-label">修改时间</span><span class="video-info-value" id="vModalTime">-</span></div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <button class="btn-rename-trigger" onclick="openRenameModal(document.getElementById('vModalName').textContent, document.getElementById('videoModal').dataset.filePath, 'video')"><i class="fas fa-pen"></i> 重命名</button>
+                <button class="btn-action-trigger" onclick="openMoveModal(document.getElementById('videoModal').dataset.filePath, document.getElementById('vModalName').textContent)"><i class="fas fa-exchange-alt"></i> 移动</button>
+                <button class="btn-delete-trigger" onclick="submitDelete(document.getElementById('videoModal').dataset.filePath, document.getElementById('vModalName').textContent, 'file')"><i class="fas fa-trash"></i> 删除</button>
+            </div>
+            <a class="btn-video-download" id="vModalDownload" href="#" download style="margin-top:10px;"><i class="fas fa-arrow-left" style="transform:rotate(-90deg);"></i> 下载视频</a>
+        </div>
+    </div>
+</div>
+
+<!-- 文件信息弹窗 -->
+<div class="modal-overlay" id="fileModal" onclick="closeFileModal(event)">
+    <div class="file-modal-content" onclick="event.stopPropagation()">
+        <div class="modal-close" onclick="closeFileModal()">&times;</div>
+        <div class="file-modal-icon"><i class="fas fa-file"></i></div>
+        <div class="file-modal-name" id="fileModalName">-</div>
+        <div class="file-modal-info">
+            <div class="file-info-row"><span class="file-info-label">类型</span><span id="fileModalType">-</span></div>
+            <div class="file-info-row"><span class="file-info-label">大小</span><span id="fileModalSize">-</span></div>
+            <div class="file-info-row"><span class="file-info-label">修改时间</span><span id="fileModalTime">-</span></div>
+            <div class="file-info-row"><span class="file-info-label">路径</span><span id="fileModalPath" style="word-break:break-all;font-size:12px;">-</span></div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn-rename-trigger" onclick="openRenameModal(document.getElementById('fileModalName').textContent, document.getElementById('fileModalPath').textContent, 'file')"><i class="fas fa-pen"></i> 重命名</button>
+            <button class="btn-action-trigger" onclick="openMoveModal(document.getElementById('fileModalPath').textContent, document.getElementById('fileModalName').textContent)"><i class="fas fa-exchange-alt"></i> 移动</button>
+            <button class="btn-delete-trigger" onclick="submitDelete(document.getElementById('fileModalPath').textContent, document.getElementById('fileModalName').textContent, 'file')"><i class="fas fa-trash"></i> 删除</button>
+        </div>
+        <a class="btn-download" id="fileModalDownload" href="#" download style="margin-top:10px;"><i class="fas fa-arrow-left" style="transform:rotate(-90deg);"></i> 下载文件</a>
+    </div>
+</div>
+
+<!-- 自定义确认弹窗（浏览页） -->
+<div class="confirm-overlay" id="confirmOverlay">
+    <div class="confirm-card">
+        <div class="confirm-icon"><i class="fas fa-times-circle"></i></div>
+        <div class="confirm-title" id="confirmTitle">确认操作</div>
+        <div class="confirm-msg" id="confirmMsg">确定要执行此操作吗？</div>
+        <div class="confirm-btns">
+            <button class="confirm-cancel" onclick="confirmResolve(false)">取消</button>
+            <button class="confirm-ok" id="confirmOkBtn" onclick="confirmResolve(true)">确定</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const ROOT_B64 = '{{ root_b64 }}';
+
+    // ===== 确认弹窗 =====
+    let _confirmResolver = null;
+    function showConfirm(title, msg, okText) {
+        document.getElementById('confirmTitle').textContent = title || '确认操作';
+        document.getElementById('confirmMsg').textContent = msg || '确定要执行此操作吗？';
+        document.getElementById('confirmOkBtn').textContent = okText || '确定';
+        document.getElementById('confirmOverlay').classList.add('active');
+        return new Promise(function(resolve) { _confirmResolver = resolve; });
+    }
+    function confirmResolve(val) {
+        document.getElementById('confirmOverlay').classList.remove('active');
+        if (_confirmResolver) { _confirmResolver(val); _confirmResolver = null; }
+    }
+
+    // ===== 图片弹窗 =====
+    const imgModal = document.getElementById('imgModal');
+    const modalImg = document.getElementById('modalImg');
+    const imgInfoCache = {};  // cache by filePath
+
+    function openImage(src, name, filePath) {
+        imgModal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+        modalImg.src = src;
+        document.getElementById('imgModalName').textContent = name || '-';
+        document.getElementById('imgModalType').textContent = name ? name.split('.').pop().toUpperCase() : '-';
+        document.getElementById('imgModalSize').textContent = '-';
+        document.getElementById('imgModalDimension').textContent = '加载中...';
+        document.getElementById('imgModalTime').textContent = '-';
+        document.getElementById('imgModalPath').textContent = filePath || '-';
+        document.getElementById('imgModalDownload').href = src;
+        document.getElementById('imgModalDownload').download = name || '';
+        imgModal.dataset.filePath = filePath || '';
+
+        // 获取图片尺寸
+        modalImg.onload = function() {
+            document.getElementById('imgModalDimension').textContent = modalImg.naturalWidth + ' × ' + modalImg.naturalHeight + ' px';
+        };
+
+        // 获取文件详细信息
+        if (filePath) {
+            if (imgInfoCache[filePath]) {
+                fillImgInfo(imgInfoCache[filePath]);
+            } else {
+                fetch('/pin-tu/file-info/' + ROOT_B64 + '?p=' + encodeURIComponent(filePath))
+                    .then(r => r.ok ? r.json() : null)
+                    .then(info => {
+                        if (!info) return;
+                        imgInfoCache[filePath] = info;
+                        fillImgInfo(info);
+                    }).catch(() => {});
+            }
+        }
+    }
+
+    function fillImgInfo(info) {
+        document.getElementById('imgModalName').textContent = info.name;
+        document.getElementById('imgModalType').textContent = info.type;
+        document.getElementById('imgModalSize').textContent = info.size;
+        document.getElementById('imgModalTime').textContent = info.modified;
+        document.getElementById('imgModalPath').textContent = info.path;
+    }
+
+    function closeImgModal(e) {
+        if (e && e.target !== imgModal && !e.target.classList.contains('modal-close')) return;
+        imgModal.classList.remove('active');
+        modalImg.src = '';
+        document.body.style.overflow = '';
+    }
+
+    // ===== 视频弹窗 =====
+    const videoModal = document.getElementById('videoModal');
+    const vVideo = document.getElementById('vModalVideo');
+    const playOverlay = document.getElementById('playOverlay');
+
+    function openVideo(src, name) {
+        videoModal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+        vVideo.src = src;
+        vVideo.pause();
+        playOverlay.classList.remove('hidden');
+        document.getElementById('vModalName').textContent = name || '-';
+        document.getElementById('vModalType').textContent = '-';
+        document.getElementById('vModalSize').textContent = '-';
+        document.getElementById('vModalTime').textContent = '-';
+        document.getElementById('vModalDownload').href = src;
+        document.getElementById('vModalDownload').download = name || '';
+        videoModal.dataset.filePath = decodeURIComponent(src.split('?p=')[1] || '');
+
+        const filePath = videoModal.dataset.filePath;
+        if (filePath) {
+            fetch('/pin-tu/file-info/' + ROOT_B64 + '?p=' + encodeURIComponent(filePath))
+                .then(r => r.ok ? r.json() : null)
+                .then(info => {
+                    if (!info) return;
+                    document.getElementById('vModalType').textContent = info.type;
+                    document.getElementById('vModalSize').textContent = info.size;
+                    document.getElementById('vModalTime').textContent = info.modified;
+                }).catch(() => {});
+        }
+    }
+    function startPlay() {
+        playOverlay.classList.add('hidden');
+        vVideo.play();
+    }
+    vVideo.addEventListener('ended', () => { playOverlay.classList.remove('hidden'); });
+    vVideo.addEventListener('pause', () => {
+        if (vVideo.currentTime > 0 && !vVideo.ended) playOverlay.classList.remove('hidden');
+    });
+    vVideo.addEventListener('play', () => { playOverlay.classList.add('hidden'); });
+    function closeVideoModal(e) {
+        if (e && e.target !== videoModal && !e.target.classList.contains('modal-close')) return;
+        videoModal.classList.remove('active');
+        vVideo.pause(); vVideo.src = '';
+        document.body.style.overflow = '';
+    }
+
+    // ===== 文件信息弹窗 =====
+    const fileModal = document.getElementById('fileModal');
+    function closeFileModal(e) {
+        if (e && e.target !== fileModal && !e.target.classList.contains('modal-close')) return;
+        fileModal.classList.remove('active');
+        document.body.style.overflow = '';
+    }
+    document.querySelectorAll('.file-trigger').forEach(el => {
+        el.addEventListener('click', () => openFileInfo(el.dataset.path));
+    });
+    async function openFileInfo(filePath) {
+        fileModal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+        document.getElementById('fileModalName').textContent = filePath.split('/').pop();
+        document.getElementById('fileModalType').textContent = '加载中...';
+        document.getElementById('fileModalSize').textContent = '-';
+        document.getElementById('fileModalTime').textContent = '-';
+        document.getElementById('fileModalPath').textContent = filePath;
+        document.getElementById('fileModalDownload').href = '#';
+        try {
+            const res = await fetch('/pin-tu/file-info/' + ROOT_B64 + '?p=' + encodeURIComponent(filePath));
+            if (!res.ok) throw new Error('请求失败');
+            const info = await res.json();
+            document.getElementById('fileModalName').textContent = info.name;
+            document.getElementById('fileModalType').textContent = info.type;
+            document.getElementById('fileModalSize').textContent = info.size;
+            document.getElementById('fileModalTime').textContent = info.modified;
+            document.getElementById('fileModalPath').textContent = info.path;
+            document.getElementById('fileModalDownload').href = '/pin-tu/media/' + ROOT_B64 + '?p=' + encodeURIComponent(filePath);
+            document.getElementById('fileModalDownload').download = info.name;
+        } catch (e) {
+            document.getElementById('fileModalType').textContent = '获取失败';
+        }
+    }
+
+    // ===== 事件绑定 =====
+    document.querySelectorAll('.img-trigger').forEach(el => {
+        el.addEventListener('click', () => openImage(el.dataset.src, el.dataset.name, el.dataset.path));
+    });
+    document.querySelectorAll('.video-trigger').forEach(el => {
+        el.addEventListener('click', () => openVideo(el.dataset.src, el.dataset.name));
+    });
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') { closeImgModal(); closeVideoModal(); closeFileModal(); closeRenameModal(); }
+    });
+
+    // ===== 重命名弹窗 =====
+    let _renameFilePath = '';
+    let _renameSource = '';
+    let _renameResolver = null;
+
+    function openRenameModal(currentName, filePath, source) {
+        _renameFilePath = filePath || '';
+        _renameSource = source || '';
+        document.getElementById('renameTitle').textContent = source === 'folder' ? '重命名文件夹' : '重命名文件';
+        document.getElementById('renameInput').value = currentName;
+        document.getElementById('renameError').style.display = 'none';
+        document.getElementById('renameOverlay').classList.add('active');
+        var inp = document.getElementById('renameInput');
+        setTimeout(function() {
+            inp.focus();
+            var dot = currentName.lastIndexOf('.');
+            if (dot > 0) inp.setSelectionRange(0, dot);
+            else inp.select();
+        }, 100);
+    }
+
+    function closeRenameModal() {
+        document.getElementById('renameOverlay').classList.remove('active');
+    }
+
+    async function submitRename() {
+        var newName = document.getElementById('renameInput').value.trim();
+        var errEl = document.getElementById('renameError');
+        if (!newName) { errEl.textContent = '名称不能为空'; errEl.style.display = 'block'; return; }
+        errEl.style.display = 'none';
+        try {
+            var res = await fetch('/pin-tu/rename/' + ROOT_B64, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path: _renameFilePath, new_name: newName })
+            });
+            var data = await res.json();
+            if (data.success) {
+                closeRenameModal();
+                // 更新弹窗内显示
+                if (_renameSource === 'img') document.getElementById('imgModalName').textContent = newName;
+                else if (_renameSource === 'video') document.getElementById('vModalName').textContent = newName;
+                else if (_renameSource === 'file') document.getElementById('fileModalName').textContent = newName;
+                setTimeout(function() { location.reload(); }, 300);
+            } else {
+                errEl.textContent = data.error || '重命名失败';
+                errEl.style.display = 'block';
+            }
+        } catch (e) {
+            errEl.textContent = '请求失败: ' + e.message;
+            errEl.style.display = 'block';
+        }
+    }
+
+    // Enter 提交，Escape 关闭
+    document.getElementById('renameInput').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') submitRename();
+        if (e.key === 'Escape') closeRenameModal();
+    });
+
+    // ===== 新建文件夹 =====
+    function openCreateFolderModal() {
+        openRenameModal('', '{{ current_subpath }}', 'newfolder');
+        document.getElementById('renameTitle').textContent = '新建文件夹';
+        document.getElementById('renameInput').value = '';
+        document.getElementById('renameInput').placeholder = '输入文件夹名称';
+    }
+
+    // 覆盖 submitRename 支持新建文件夹
+    var _origSubmitRename = submitRename;
+    submitRename = async function() {
+        if (_renameSource === 'newfolder') {
+            var name = document.getElementById('renameInput').value.trim();
+            var errEl = document.getElementById('renameError');
+            if (!name) { errEl.textContent = '名称不能为空'; errEl.style.display = 'block'; return; }
+            errEl.style.display = 'none';
+            try {
+                var res = await fetch('/pin-tu/create-folder/' + ROOT_B64, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: _renameFilePath, name: name })
+                });
+                var data = await res.json();
+                if (data.success) {
+                    closeRenameModal();
+                    location.reload();
+                } else {
+                    errEl.textContent = data.error || '创建失败';
+                    errEl.style.display = 'block';
+                }
+            } catch (e) {
+                errEl.textContent = '请求失败: ' + e.message;
+                errEl.style.display = 'block';
+            }
+            return;
+        }
+        _origSubmitRename();
+    };
+
+    // ===== 移动文件/文件夹 =====
+    var _moveSource = '';
+    var _moveCurrentPath = '';
+
+    function openMoveModal(filePath, itemName) {
+        _moveSource = filePath || '';
+        document.getElementById('moveItemName').textContent = itemName || '-';
+        document.getElementById('moveError').style.display = 'none';
+        document.getElementById('moveOverlay').classList.add('active');
+        // 从根目录开始浏览
+        _moveCurrentPath = '';
+        loadMoveFolders('');
+    }
+
+    function closeMoveModal() {
+        document.getElementById('moveOverlay').classList.remove('active');
+    }
+
+    async function loadMoveFolders(subpath) {
+        _moveCurrentPath = subpath;
+        var list = document.getElementById('moveList');
+        list.innerHTML = '<div class="move-empty">加载中...</div>';
+        try {
+            var res = await fetch('/pin-tu/list-folders/' + ROOT_B64 + '?p=' + encodeURIComponent(subpath));
+            var data = await res.json();
+
+            // 面包屑
+            renderMoveBreadcrumb(data.current);
+
+            // 文件夹列表
+            if (!data.folders.length && !data.parent && !data.current) {
+                list.innerHTML = '<div class="move-empty">根目录（无子文件夹）</div>';
+                return;
+            }
+            var html = '';
+            // 上一级
+            if (data.current) {
+                html += '<div class="move-folder-item" onclick="loadMoveFolders(\'' + escapeMovePath(data.parent) + '\')">' +
+                    '<span class="mfi-icon"><i class="fas fa-level-up-alt"></i></span>' +
+                    '<span class="mfi-name">..</span>' +
+                    '<span class="mfi-arrow"><i class="fas fa-chevron-left"></i></span></div>';
+            }
+            data.folders.forEach(function(f) {
+                // 跳过正在移动的文件夹自身
+                if (f.path === _moveSource) return;
+                html += '<div class="move-folder-item" onclick="loadMoveFolders(\'' + escapeMovePath(f.path) + '\')">' +
+                    '<span class="mfi-icon"><i class="fas fa-folder"></i></span>' +
+                    '<span class="mfi-name">' + escapeHtml(f.name) + '</span>' +
+                    '<span class="mfi-arrow"><i class="fas fa-chevron-right"></i></span></div>';
+            });
+            list.innerHTML = html || '<div class="move-empty">此目录无子文件夹</div>';
+        } catch (e) {
+            list.innerHTML = '<div class="move-empty" style="color:#c62828;">加载失败</div>';
+        }
+    }
+
+    function escapeHtml(s) {
+        return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+    function escapeMovePath(p) {
+        return p.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    }
+
+    function renderMoveBreadcrumb(current) {
+        var bc = document.getElementById('moveBreadcrumb');
+        var html = '<span onclick="loadMoveFolders(\'\')" ' + (!current ? 'class="mb-current"' : '') + '>根目录</span>';
+        if (current) {
+            var parts = current.split('/');
+            var cum = '';
+            parts.forEach(function(p, i) {
+                cum += (cum ? '/' : '') + p;
+                html += ' <span class="mb-sep">›</span> ';
+                if (i === parts.length - 1) {
+                    html += '<span class="mb-current">' + escapeHtml(p) + '</span>';
+                } else {
+                    html += '<span onclick="loadMoveFolders(\'' + escapeMovePath(cum) + '\')">' + escapeHtml(p) + '</span>';
+                }
+            });
+        }
+        bc.innerHTML = html;
+    }
+
+    async function submitMove() {
+        var errEl = document.getElementById('moveError');
+        errEl.style.display = 'none';
+        try {
+            var res = await fetch('/pin-tu/move/' + ROOT_B64, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ source: _moveSource, dest: _moveCurrentPath })
+            });
+            var data = await res.json();
+            if (data.success) {
+                closeMoveModal();
+                // 关闭可能打开的图片/视频/文件弹窗
+                closeImgModal(); closeVideoModal(); closeFileModal();
+                location.reload();
+            } else {
+                errEl.textContent = data.error || '移动失败';
+                errEl.style.display = 'block';
+            }
+        } catch (e) {
+            errEl.textContent = '请求失败: ' + e.message;
+            errEl.style.display = 'block';
+        }
+    }
+
+    // Escape 关闭移动弹窗
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') closeMoveModal();
+    });
+
+    // ===== 删除文件/文件夹 =====
+    async function submitDelete(filePath, itemName, type) {
+        var msg = type === 'folder'
+            ? '确定删除文件夹「' + itemName + '」及其所有内容？此操作不可撤销。'
+            : '确定删除「' + itemName + '」？此操作不可撤销。';
+        var ok = await showConfirm('删除', msg, '删除');
+        if (!ok) return;
+        try {
+            var res = await fetch('/pin-tu/delete/' + ROOT_B64, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ source: filePath })
+            });
+            var data = await res.json();
+            if (data.success) {
+                closeImgModal(); closeVideoModal(); closeFileModal();
+                location.reload();
+            } else {
+                alert(data.error || '删除失败');
+            }
+        } catch (e) {
+            alert('请求失败: ' + e.message);
+        }
+    }
+
+    // 加载 font-awesome 的 level-up-alt 图标
+    // (已通过 fa-level-up-alt 定义)
+
+
+    // ===== 搜索结果跳转自动打开图片/视频 =====
+    (function() {
+        var params = new URLSearchParams(window.location.search);
+        var openFile = params.get('open');
+        var openVideoFile = params.get('openVideo');
+        if (!openFile && !openVideoFile) return;
+        // 清除 URL 中的 open 参数（不刷新页面）
+        params.delete('open');
+        params.delete('openVideo');
+        var newSearch = params.toString();
+        var newUrl = window.location.pathname + (newSearch ? '?' + newSearch : '');
+        window.history.replaceState({}, '', newUrl);
+
+        if (openFile) {
+            // 查找匹配的图片触发元素
+            var triggers = document.querySelectorAll('.img-trigger');
+            for (var i = 0; i < triggers.length; i++) {
+                if (triggers[i].dataset.name === openFile) {
+                    triggers[i].click();
+                    return;
+                }
+            }
+        }
+        if (openVideoFile) {
+            var vTriggers = document.querySelectorAll('.video-trigger');
+            for (var i = 0; i < vTriggers.length; i++) {
+                if (vTriggers[i].dataset.name === openVideoFile) {
+                    vTriggers[i].click();
+                    return;
+                }
+            }
+        }
+    })();
+</script>
+{% endif %}
+
+</body>
+</html>

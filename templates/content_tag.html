@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='font-awesome.css') }}">
+    <title>文章标签生成</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+        }
+        .left-panel {
+            width: 45%;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid #e8e8e8;
+            background: #fff;
+            height: 100vh;
+            overflow-y: auto;
+        }
+        .left-panel::-webkit-scrollbar { width: 4px; }
+        .left-panel::-webkit-scrollbar-thumb { background: #ddd; border-radius: 2px; }
+        .input-section { padding: 20px 24px 28px; flex-shrink: 0; }
+        .content-section { padding: 0 24px 24px; flex: 1; display: flex; flex-direction: column; min-height: 0; }
+
+        /* 头部 */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 2px;
+        }
+        .header h1 {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1a1a1a;
+            letter-spacing: -0.01em;
+        }
+        .settings-icon {
+            width: 32px; height: 32px;
+            border: none; background: transparent;
+            color: #999; font-size: 15px;
+            cursor: pointer; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.15s;
+        }
+        .settings-icon:hover { background: #f5f5f5; color: #333; }
+        .subtitle { color: #aaa; font-size: 12px; margin-bottom: 16px; }
+
+        /* section-card */
+        .section-card {
+            background: #fafafa;
+            border: 1px solid #f0f0f0;
+            border-radius: 10px;
+            padding: 14px 16px;
+            margin-bottom: 12px;
+        }
+        .section-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .section-title i { font-size: 11px; }
+
+        /* 输入 */
+        .input-group { margin-bottom: 10px; }
+        .input-group:last-child { margin-bottom: 0; }
+        .input-group label {
+            display: block; font-size: 12px; font-weight: 500;
+            margin-bottom: 4px; color: #555;
+        }
+        .input-group .input-wrap { position: relative; }
+        .input-group .input-wrap i {
+            position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+            color: #c0c0c0; font-size: 12px; pointer-events: none;
+        }
+        .input-group input,
+        .input-group select {
+            width: 100%; padding: 7px 10px 7px 32px;
+            border: 1px solid #e0e0e0; border-radius: 6px;
+            background: #fff; color: #333; font-size: 13px;
+            outline: none; transition: all 0.15s ease;
+        }
+        .input-group input::placeholder { color: #c0c0c0; }
+        .input-group input:focus,
+        .input-group select:focus {
+            border-color: #0078d4;
+            box-shadow: 0 0 0 2px rgba(0,120,212,0.06);
+        }
+        .input-group.no-icon input,
+        .input-group.no-icon select { padding-left: 10px; }
+        .input-group select {
+            -webkit-appearance: none; -moz-appearance: none; appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%23999' d='M5 7L1 3h8z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat; background-position: right 10px center;
+            padding-right: 28px; cursor: pointer;
+        }
+        .input-row { display: flex; gap: 8px; }
+        .input-row .input-group { flex: 1; }
+
+        /* API 行 */
+        .api-row { display: flex; gap: 8px; align-items: flex-end; }
+        .api-row .input-group { flex: 1; margin-bottom: 0; }
+
+        /* 按钮 */
+        .btn {
+            padding: 7px 14px; border: none; border-radius: 6px;
+            font-size: 12px; font-weight: 600; cursor: pointer;
+            transition: all 0.12s ease;
+            display: inline-flex; align-items: center; gap: 5px;
+            white-space: nowrap;
+        }
+        .btn-primary { background: #0078d4; color: #fff; }
+        .btn-primary:hover:not(:disabled) { background: #006cbd; }
+        .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+        .btn-outline { background: #fff; color: #666; border: 1px solid #e0e0e0; }
+        .btn-outline:hover { background: #f5f5f5; color: #333; }
+        .btn-sm { padding: 5px 10px; font-size: 11px; }
+        .btn-block { width: 100%; justify-content: center; }
+        .btn-row { display: flex; gap: 8px; margin-top: 12px; }
+
+        /* textarea */
+        .text-input {
+            width: 100%; padding: 10px 12px;
+            border: 1px solid #e0e0e0; border-radius: 6px;
+            font-size: 13px; outline: none; resize: none;
+            font-family: inherit; transition: border-color 0.15s;
+            line-height: 1.6;
+        }
+        .text-input:focus { border-color: #0078d4; box-shadow: 0 0 0 2px rgba(0,120,212,0.06); }
+        .text-input::placeholder { color: #c0c0c0; }
+
+        /* 生成按钮 */
+        .generate-btn {
+            width: 100%; padding: 10px 18px;
+            background: linear-gradient(135deg, #0078d4, #005fa3);
+            color: #fff; border: none; border-radius: 8px;
+            font-size: 14px; font-weight: 600;
+            cursor: pointer; transition: all 0.15s ease;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            box-shadow: 0 2px 8px rgba(0,120,212,0.2);
+        }
+        .generate-btn:hover:not(:disabled) {
+            background: linear-gradient(135deg, #006cbd, #004e8a);
+            box-shadow: 0 4px 12px rgba(0,120,212,0.3);
+            transform: translateY(-1px);
+        }
+        .generate-btn:active:not(:disabled) { transform: translateY(0); }
+        .generate-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+        /* 右侧面板 */
+        .right-panel {
+            flex: 1; display: flex; flex-direction: column;
+            padding: 28px 32px; overflow-y: auto;
+            background: #f5f5f5;
+        }
+        .right-panel::-webkit-scrollbar { width: 4px; }
+        .right-panel::-webkit-scrollbar-thumb { background: #ddd; border-radius: 2px; }
+
+        /* placeholder */
+        .result-placeholder {
+            flex: 1; display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            text-align: center; color: #bbb;
+        }
+        .result-placeholder .ph-icon {
+            width: 72px; height: 72px; border-radius: 18px;
+            background: #fff; border: 1px solid #e0e0e0;
+            display: flex; align-items: center; justify-content: center;
+            margin-bottom: 16px;
+        }
+        .result-placeholder .ph-icon i { font-size: 28px; color: #ddd; }
+        .result-placeholder p { font-size: 14px; color: #999; }
+        .result-placeholder .ph-hint { font-size: 12px; color: #ccc; margin-top: 4px; }
+
+        /* 右侧结果 */
+        .result-header {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 16px;
+        }
+        .result-header h2 { font-size: 16px; font-weight: 700; color: #1a1a1a; }
+        .meta {
+            display: flex; gap: 16px; font-size: 12px; color: #999;
+            margin-bottom: 20px; flex-wrap: wrap;
+        }
+        .meta span { display: flex; align-items: center; gap: 4px; }
+        .meta .value { font-weight: 600; color: #555; }
+        .tag-list {
+            display: flex; flex-wrap: wrap; gap: 8px;
+            margin-bottom: 20px;
+        }
+        .tag {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 6px 14px;
+            background: #e8f0fe; color: #0078d4;
+            border: 1px solid #b3d9ff; border-radius: 20px;
+            font-size: 13px; font-weight: 500;
+            cursor: pointer; transition: all 0.15s;
+            user-select: all;
+        }
+        .tag:hover { background: #d0e4fd; }
+        .tag .copy-hint { font-size: 10px; opacity: 0; transition: opacity 0.15s; }
+        .tag:hover .copy-hint { opacity: 0.6; }
+        .tag-text-box {
+            padding: 12px 14px;
+            background: #fff; border: 1px solid #e0e0e0; border-radius: 8px;
+            display: flex; align-items: center; gap: 12px;
+        }
+        .tag-text-box .tag-text {
+            flex: 1; font-size: 13px; color: #333;
+            word-break: break-all; line-height: 1.6; user-select: all;
+        }
+        .think-card {
+            margin-top: 16px; background: #fff; border: 1px solid #e0e0e0;
+            border-radius: 8px; overflow: hidden;
+        }
+        .think-header {
+            padding: 10px 14px; font-size: 12px; font-weight: 600;
+            color: #999; background: #fafafa;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex; align-items: center; gap: 6px;
+            text-transform: uppercase; letter-spacing: 0.05em;
+        }
+        .think-box {
+            padding: 14px; font-size: 13px; line-height: 1.6;
+            color: #666; white-space: pre-wrap; word-break: break-all;
+            max-height: 200px; overflow-y: auto;
+        }
+        /* loading */
+        .loading-wrap {
+            flex: 1; display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            color: #999;
+        }
+        .loading-wrap .spinner {
+            width: 32px; height: 32px; margin-bottom: 16px;
+            border: 3px solid rgba(0,120,212,0.15);
+            border-top-color: #0078d4; border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        .loading-wrap p { font-size: 13px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .spinner-sm {
+            display: inline-block; width: 14px; height: 14px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: #fff; border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        /* error bar */
+        .error-bar {
+            padding: 12px 16px; background: #fde8e8; color: #c62828;
+            border: 1px solid #f5b3b3; border-radius: 8px;
+            font-size: 13px; display: flex; align-items: center; gap: 8px;
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+            background: #0a7a1a; color: #fff;
+            padding: 10px 24px; border-radius: 8px;
+            font-size: 14px; font-weight: 500;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            opacity: 0; transition: opacity 0.3s;
+            z-index: 9999; pointer-events: none;
+        }
+        .toast.show { opacity: 1; }
+        .toast.error { background: #c62828; }
+
+        /* 设置弹窗 */
+        .modal-overlay {
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.45); z-index: 1000;
+            align-items: center; justify-content: center;
+        }
+        .modal-overlay.show { display: flex; }
+        .modal {
+            background: #fff; border-radius: 12px; width: 520px;
+            max-height: 80vh; overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+            display: flex; flex-direction: column;
+        }
+        .modal-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 18px 22px; border-bottom: 1px solid #eee;
+        }
+        .modal-header h2 { font-size: 15px; font-weight: 600; color: #333; display: flex; align-items: center; gap: 8px; }
+        .modal-close {
+            width: 26px; height: 26px; border: none; background: transparent;
+            color: #999; font-size: 18px; cursor: pointer; border-radius: 6px;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .modal-close:hover { background: #f5f5f5; color: #333; }
+        .modal-body { padding: 18px 22px; overflow-y: auto; flex: 1; }
+        .modal-footer {
+            display: flex; justify-content: flex-end; gap: 10px;
+            padding: 14px 22px; border-top: 1px solid #eee; background: #fafafa;
+        }
+        .hint-box {
+            padding: 10px 14px; background: #f0f7ff;
+            border: 1px solid #b3d9ff; border-radius: 6px;
+            font-size: 12px; color: #555; line-height: 1.8;
+            margin-bottom: 16px;
+        }
+        .hint-box strong { color: #0078d4; }
+        .hint-box code {
+            background: #e3f2fd; padding: 1px 6px; border-radius: 3px;
+            font-family: Consolas, "Courier New", monospace; font-size: 11px; color: #1565c0;
+        }
+        .prompt-tabs {
+            display: flex; gap: 0; margin-bottom: 12px;
+            border-bottom: 2px solid #eee;
+        }
+        .prompt-tab {
+            padding: 8px 16px; font-size: 12px; cursor: pointer;
+            border: none; background: none; color: #999; font-weight: 600;
+            border-bottom: 2px solid transparent; margin-bottom: -2px;
+            transition: all 0.15s;
+        }
+        .prompt-tab.active { color: #0078d4; border-bottom-color: #0078d4; }
+        .prompt-content { display: none; }
+        .prompt-content.active { display: block; }
+        .prompt-textarea {
+            width: 100%; height: 200px;
+            padding: 10px 12px; border: 1px solid #e0e0e0; border-radius: 6px;
+            font-size: 12px; line-height: 1.6; resize: vertical; outline: none;
+            font-family: Consolas, "Courier New", monospace;
+            background: #fff; color: #333; transition: border-color 0.15s;
+        }
+        .prompt-textarea:focus { border-color: #0078d4; box-shadow: 0 0 0 2px rgba(0,120,212,0.06); }
+        @media (max-width: 768px) {
+            body { flex-direction: column; height: auto; overflow: auto; }
+            .left-panel { width: 100% !important; max-width: 100% !important; height: auto; border-right: none; border-bottom: 1px solid #e8e8e8; overflow-y: visible; }
+            .right-panel { height: auto; min-height: 50vh; }
+            .card-pair { flex-direction: column; }
+            .modal { width: 92vw !important; max-height: 90vh; overflow-y: auto; left: 4vw !important; transform: none !important; }
+            .input-section { padding: 14px 16px 20px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="toast" id="toast"></div>
+
+    <!-- 设置弹窗 -->
+    <div class="modal-overlay" id="promptModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2><i class="fas fa-wrench"></i> 高级设置</h2>
+                <button class="modal-close" onclick="closePromptModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="input-row" style="margin-bottom:16px;">
+                    <div class="input-group no-icon">
+                        <label for="maxTags">最大标签数</label>
+                        <input type="number" id="maxTags" value="10" min="1" max="50">
+                    </div>
+                    <div class="input-group no-icon">
+                        <label for="minLength">最短字数</label>
+                        <input type="number" id="minLength" value="2" min="1" max="20">
+                    </div>
+                    <div class="input-group no-icon">
+                        <label for="maxLength">最长字数</label>
+                        <input type="number" id="maxLength" value="6" min="1" max="50">
+                    </div>
+                </div>
+                <div class="hint-box">
+                    <strong>可用变量：</strong><br>
+                    <code>{content}</code> 文章内容 &nbsp;
+                    <code>{max_tags}</code> 最大标签数 &nbsp;
+                    <code>{min_length}</code> 最短字数 &nbsp;
+                    <code>{max_length}</code> 最长字数
+                </div>
+                <div class="prompt-tabs">
+                    <button class="prompt-tab active" onclick="switchPromptTab('system')">系统提示词</button>
+                    <button class="prompt-tab" onclick="switchPromptTab('user')">用户提示词</button>
+                </div>
+                <div class="prompt-content active" id="systemPromptPane">
+                    <textarea class="prompt-textarea" id="systemMsg"></textarea>
+                </div>
+                <div class="prompt-content" id="userPromptPane">
+                    <textarea class="prompt-textarea" id="userMsg"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="resetPrompts()">恢复默认</button>
+                <button class="btn btn-primary" onclick="savePrompts()"><i class="fas fa-check"></i> 保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 左侧面板 -->
+    <div class="left-panel">
+        <div class="input-section">
+            <div class="header">
+                <h1>文章标签 AI 生成</h1>
+                <button class="settings-icon" onclick="openPromptModal()" title="高级设置">
+                    <i class="fas fa-wrench"></i>
+                </button>
+            </div>
+            <p class="subtitle">接入 LLM 模型，自动提取文章关键词标签</p>
+
+            <!-- 连接设置 -->
+            <div class="section-card">
+                <div class="section-title"><i class="fas fa-link"></i> 连接设置</div>
+                <div class="input-row">
+                    <div class="input-group no-icon" style="max-width:120px;">
+                        <label for="software">软件类型</label>
+                        <select id="software" onchange="onSoftwareChange()">
+                            <option value="ollama">Ollama</option>
+                            <option value="llamacpp" selected>llama.cpp</option>
+                        </select>
+                    </div>
+                    <div class="input-group" id="modelGroup" style="display:none;">
+                        <label for="model">模型</label>
+                        <div class="input-wrap">
+                            <i class="fas fa-robot"></i>
+                            <select id="model">
+                                <option value="">请先获取模型列表</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="api-row" style="margin-top:8px;">
+                    <div class="input-group">
+                        <label for="apiUrl">API 地址</label>
+                        <div class="input-wrap">
+                            <i class="fas fa-link"></i>
+                            <input type="text" id="apiUrl" placeholder="http://127.0.0.1:8080/v1/chat/completions" value="http://127.0.0.1:8080/v1/chat/completions">
+                        </div>
+                    </div>
+                    <button class="btn btn-outline" id="testBtn" onclick="testApi()"><i class="fas fa-refresh"></i> 测试</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 文章输入 -->
+        <div class="content-section">
+            <div class="section-card" style="flex:1; display:flex; flex-direction:column; margin-bottom:0;">
+                <div class="section-title"><i class="fas fa-pen"></i> 文章内容</div>
+                <textarea class="text-input" id="content" placeholder="在此粘贴文章内容…" style="flex:1; min-height:0;"></textarea>
+                <div class="btn-row">
+                    <button class="btn btn-outline" onclick="clearAll()"><i class="fas fa-trash"></i> 清空</button>
+                    <button class="generate-btn" id="generateBtn" onclick="generate()" style="flex:1;" disabled>
+                        <i class="fas fa-tags"></i> 请先测试连接
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 右侧面板 -->
+    <div class="right-panel" id="rightPanel">
+        <div class="result-placeholder" id="resultPlaceholder">
+            <div class="ph-icon"><i class="fas fa-tags"></i></div>
+            <p>粘贴文章内容，点击「生成标签」</p>
+            <span class="ph-hint">Ctrl + Enter 快速生成</span>
+        </div>
+        <div id="resultContent" style="display:none; width:100%;"></div>
+    </div>
+
+    <script>
+        var softwareSelect = document.getElementById('software');
+        var apiUrl = document.getElementById('apiUrl');
+        var modelSelect = document.getElementById('model');
+        var modelGroup = document.getElementById('modelGroup');
+        var maxTagsInput = document.getElementById('maxTags');
+        var minLengthInput = document.getElementById('minLength');
+        var maxLengthInput = document.getElementById('maxLength');
+        var contentInput = document.getElementById('content');
+        var generateBtn = document.getElementById('generateBtn');
+        var rightPanel = document.getElementById('rightPanel');
+        var resultPlaceholder = document.getElementById('resultPlaceholder');
+        var resultContent = document.getElementById('resultContent');
+
+        var currentTags = [];
+
+        var DEFAULT_SYSTEM_MSG = "你是一个专门生成文章标签的助手，请你根据我给你的文章的内容总结并生成一系列的标签，格式可以参考[关键词1, 关键词2, 关键词3].你只需要给我生成这种形式的标签即可，其他分析内容无需输出.";
+        var DEFAULT_USER_MSG = "请严格按照以下要求，从提供的文章内容中提取关键词。\n\n文章内容:\n{content}\n\n要求:\n- 提取最多 {max_tags} 个最能概括文章主旨和核心概念的关键词。\n- 关键词必须来源于文章内容，准确反映文章主题。\n- 每个关键词的长度必须在 {min_length} 到 {max_length} 个字符之间。\n- 输出格式为：关键词1, 关键词2, 关键词3, ...\n- 只输出关键词列表，不要有任何其他解释或前缀。";
+
+        var defaultUrls = {
+            ollama: 'http://127.0.0.1:11434/api/generate',
+            llamacpp: 'http://127.0.0.1:8080/v1/chat/completions'
+        };
+
+        /* 设置弹窗 */
+        function openPromptModal() { document.getElementById('promptModal').classList.add('show'); }
+        function closePromptModal() { document.getElementById('promptModal').classList.remove('show'); }
+        function switchPromptTab(tab) {
+            document.querySelectorAll('.prompt-tab').forEach(function(t, i) {
+                t.classList.toggle('active', tab === 'system' ? i === 0 : i === 1);
+            });
+            document.getElementById('systemPromptPane').classList.toggle('active', tab === 'system');
+            document.getElementById('userPromptPane').classList.toggle('active', tab === 'user');
+        }
+        function resetPrompts() {
+            document.getElementById('systemMsg').value = DEFAULT_SYSTEM_MSG;
+            document.getElementById('userMsg').value = DEFAULT_USER_MSG;
+            maxTagsInput.value = 10;
+            minLengthInput.value = 2;
+            maxLengthInput.value = 6;
+        }
+        function savePrompts() {
+            fetch('/content-tag/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    system_msg: document.getElementById('systemMsg').value,
+                    user_msg: document.getElementById('userMsg').value,
+                    max_tags: parseInt(maxTagsInput.value) || 10,
+                    min_length: parseInt(minLengthInput.value) || 2,
+                    max_length: parseInt(maxLengthInput.value) || 6
+                })
+            }).then(function(r) { return r.json(); }).then(function(d) {
+                if (d.success) { closePromptModal(); showToast('设置已保存'); }
+                else showToast(d.error || '保存失败', 'error');
+            }).catch(function(e) { showToast('保存失败', 'error'); });
+        }
+        function loadSettings() {
+            fetch('/content-tag/settings').then(function(r) { return r.json(); }).then(function(d) {
+                if (d.success && d.settings) {
+                    var s = d.settings;
+                    document.getElementById('systemMsg').value = s.system_msg || DEFAULT_SYSTEM_MSG;
+                    document.getElementById('userMsg').value = s.user_msg || DEFAULT_USER_MSG;
+                    maxTagsInput.value = s.max_tags || 10;
+                    minLengthInput.value = s.min_length || 2;
+                    maxLengthInput.value = s.max_length || 6;
+                }
+            }).catch(function() {});
+        }
+        loadSettings();
+
+        [maxTagsInput, minLengthInput, maxLengthInput].forEach(function(el) {
+            el.addEventListener('change', function() {
+                fetch('/content-tag/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        max_tags: parseInt(maxTagsInput.value) || 10,
+                        min_length: parseInt(minLengthInput.value) || 2,
+                        max_length: parseInt(maxLengthInput.value) || 6
+                    })
+                });
+            });
+        });
+
+        /* 软件切换 */
+        function onSoftwareChange() {
+            var sw = softwareSelect.value;
+            apiUrl.value = defaultUrls[sw] || '';
+            modelGroup.style.display = sw === 'ollama' ? '' : 'none';
+            document.getElementById('testBtn').innerHTML = '<i class="fas fa-refresh"></i> 测试';
+        }
+
+        /* 测试连接 */
+        async function testApi() {
+            var testBtn = document.getElementById('testBtn');
+            testBtn.disabled = true;
+            testBtn.innerHTML = '<span class="spinner-sm" style="border-color:rgba(0,0,0,0.15);border-top-color:#333;"></span>';
+            try {
+                var sw = softwareSelect.value;
+                var res = await fetch('/content-tag/test-api', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ api_url: apiUrl.value.trim(), model: modelSelect.value, software: sw })
+                });
+                var data = await res.json();
+                if (data.success) {
+                    testBtn.innerHTML = '<i class="fas fa-check" style="color:#0a7a1a;"></i>';
+                    generateBtn.disabled = false;
+                    generateBtn.innerHTML = '<i class="fas fa-tags"></i> 生成标签';
+                    if (sw === 'ollama' && data.models) {
+                        modelSelect.innerHTML = data.models.map(function(m) { return '<option value="' + m + '">' + m + '</option>'; }).join('');
+                        modelGroup.style.display = '';
+                    }
+                    showToast('连接成功');
+                } else {
+                    testBtn.innerHTML = '<i class="fas fa-times-circle" style="color:#c62828;"></i>';
+                    if (data.error) showToast(data.error, 'error');
+                }
+            } catch (err) {
+                testBtn.innerHTML = '<i class="fas fa-times-circle" style="color:#c62828;"></i>';
+                showToast('请求失败: ' + err.message, 'error');
+            } finally {
+                testBtn.disabled = false;
+            }
+        }
+
+        /* 清空 */
+        function clearAll() {
+            contentInput.value = '';
+            resultContent.style.display = 'none';
+            resultContent.innerHTML = '';
+            resultPlaceholder.style.display = 'flex';
+            currentTags = [];
+        }
+
+        /* 生成 */
+        async function generate() {
+            var url = apiUrl.value.trim();
+            var model = modelSelect.value;
+            var content = contentInput.value.trim();
+            var software = softwareSelect.value;
+
+            if (!url) { showToast('请填写 API 地址', 'error'); return; }
+            if (software === 'ollama' && !model) { showToast('请选择模型', 'error'); return; }
+            if (!content) { showToast('请输入文章内容', 'error'); return; }
+
+            var TIMEOUT_SEC = 120;
+            var elapsed = 0;
+            generateBtn.disabled = true;
+            generateBtn.innerHTML = '<span class="spinner-sm"></span> 分析中 0s';
+            resultPlaceholder.style.display = 'none';
+            resultContent.style.display = 'block';
+            resultContent.innerHTML =
+                '<div class="loading-wrap"><div class="spinner"></div><p>正在调用 AI 模型分析文章…</p></div>';
+
+            var timer = setInterval(function() {
+                elapsed++;
+                generateBtn.innerHTML = '<span class="spinner-sm"></span> 分析中 ' + elapsed + 's / ' + TIMEOUT_SEC + 's';
+            }, 1000);
+
+            var controller = new AbortController();
+            var timeoutId = setTimeout(function() { controller.abort(); }, TIMEOUT_SEC * 1000);
+
+            try {
+                var res = await fetch('/content-tag/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        api_url: url, model: model, software: software,
+                        content: content,
+                        max_tags: parseInt(maxTagsInput.value) || 10,
+                        min_length: parseInt(minLengthInput.value) || 2,
+                        max_length: parseInt(maxLengthInput.value) || 6,
+                        system_msg: document.getElementById('systemMsg').value,
+                        user_msg: document.getElementById('userMsg').value
+                    }),
+                    signal: controller.signal
+                });
+                var data = await res.json();
+                if (data.success) {
+                    currentTags = data.tags;
+                    renderResult(data);
+                } else {
+                    resultContent.innerHTML = '<div class="error-bar"><i class="fas fa-times-circle"></i> ' + data.error + '</div>';
+                }
+            } catch (err) {
+                var msg = err.name === 'AbortError' ? '请求超时（' + TIMEOUT_SEC + '秒）' : '请求失败: ' + err.message;
+                resultContent.innerHTML = '<div class="error-bar"><i class="fas fa-times-circle"></i> ' + msg + '</div>';
+            } finally {
+                clearTimeout(timeoutId);
+                clearInterval(timer);
+                generateBtn.disabled = false;
+                generateBtn.innerHTML = '<i class="fas fa-tags"></i> 生成标签';
+            }
+        }
+
+        /* 渲染结果 */
+        function renderResult(data) {
+            var tagsHtml = data.tags.map(function(t) {
+                return '<span class="tag" onclick="copyTag(this, \'' + t.replace(/'/g, "\\'") + '\')">' +
+                    t + '<span class="copy-hint">复制</span></span>';
+            }).join('');
+            var tagsText = data.tags.join(', ');
+
+            var html = '' +
+                '<div class="result-header">' +
+                    '<h2>生成结果</h2>' +
+                    '<button class="btn btn-outline btn-sm" id="copyAllBtn" onclick="copyAllTags()"><i class="fas fa-copy"></i> 复制全部</button>' +
+                '</div>' +
+                '<div class="meta">' +
+                    '<span><i class="fas fa-robot"></i> <span class="value">' + data.model + '</span></span>' +
+                    '<span><i class="fas fa-clock"></i> <span class="value">' + data.consume + 's</span></span>' +
+                    '<span><i class="fas fa-tags"></i> <span class="value">' + data.tags.length + ' 个标签</span></span>' +
+                '</div>' +
+                '<div class="tag-list">' + tagsHtml + '</div>' +
+                '<div class="tag-text-box">' +
+                    '<span class="tag-text">' + tagsText + '</span>' +
+                    '<button class="btn btn-outline btn-sm" onclick="copyTagText(this)"><i class="fas fa-copy"></i> 复制</button>' +
+                '</div>';
+
+            if (data.think) {
+                html += '<div class="think-card"><div class="think-header"><i class="fas fa-brain"></i> AI 思考过程</div>' +
+                    '<div class="think-box"></div></div>';
+            }
+
+            resultContent.innerHTML = html;
+
+            if (data.think) {
+                resultContent.querySelector('.think-box').textContent = data.think;
+            }
+        }
+
+        /* Toast */
+        function showToast(msg, type) {
+            var toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.className = 'toast show' + (type === 'error' ? ' error' : '');
+            setTimeout(function() { toast.className = 'toast'; }, 2000);
+        }
+
+        /* 复制 */
+        function copyToClipboard(text) {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                return navigator.clipboard.writeText(text);
+            }
+            return new Promise(function(resolve, reject) {
+                var ta = document.createElement('textarea');
+                ta.value = text;
+                ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px';
+                document.body.appendChild(ta);
+                ta.select();
+                try { document.execCommand('copy') ? resolve() : reject(); }
+                catch (e) { reject(e); }
+                finally { document.body.removeChild(ta); }
+            });
+        }
+        function copyTag(el, text) {
+            copyToClipboard(text).then(function() {
+                showToast('已复制');
+                el.style.background = '#d1fae5'; el.style.borderColor = '#a7f3d0'; el.style.color = '#065f46';
+                setTimeout(function() { el.style.background = ''; el.style.borderColor = ''; el.style.color = ''; }, 600);
+            });
+        }
+        function copyAllTags() {
+            if (!currentTags.length) return;
+            var btn = document.getElementById('copyAllBtn');
+            copyToClipboard(currentTags.join(', ')).then(function() {
+                showToast('已复制');
+                btn.innerHTML = '<i class="fas fa-check"></i> 已复制';
+                setTimeout(function() { btn.innerHTML = '<i class="fas fa-copy"></i> 复制全部'; }, 1500);
+            });
+        }
+        function copyTagText(btn) {
+            var text = btn.parentElement.querySelector('.tag-text').textContent;
+            copyToClipboard(text).then(function() {
+                showToast('已复制');
+                btn.innerHTML = '<i class="fas fa-check"></i> 已复制';
+                setTimeout(function() { btn.innerHTML = '<i class="fas fa-copy"></i> 复制'; }, 1500);
+            });
+        }
+
+        /* 快捷键 */
+        contentInput.addEventListener('keydown', function(e) {
+            if (e.ctrlKey && e.key === 'Enter') generate();
+        });
+    </script>
+</body>
+</html>

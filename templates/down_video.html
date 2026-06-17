@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='font-awesome.css') }}">
+    <title>视频下载器</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+        }
+        /* 左侧面板 */
+        .left-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid #e0e0e0;
+            min-width: 420px;
+            background: #fff;
+            height: 100vh;
+            overflow-y: auto;
+        }
+        .input-section {
+            padding: 32px;
+            height: 100%;
+            /*border-bottom: 1px solid #e0e0e0;*/
+        }
+        .input-section h1 {
+            font-size: 22px;
+            font-weight: 700;
+            margin-bottom: 4px;
+            color: #333;
+            letter-spacing: -0.02em;
+        }
+        .input-section .subtitle {
+            color: #666;
+            font-size: 13px;
+            margin-bottom: 24px;
+        }
+        .input-group {
+            margin-bottom: 16px;
+            position: relative;
+        }
+        .input-group label {
+            display: block;
+            font-size: 12px;
+            font-weight: 500;
+            margin-bottom: 6px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .input-group .input-wrap {
+            position: relative;
+        }
+        .input-group .input-wrap i {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #bbb;
+            font-size: 14px;
+            pointer-events: none;
+        }
+        .input-group input {
+            width: 100%;
+            padding: 12px 14px 12px 40px;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            background: #fff;
+            color: #333;
+            font-size: 14px;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+        .input-group input::placeholder { color: #bbb; }
+        .input-group input:focus { border-color: #0078d4; box-shadow: 0 0 0 3px rgba(0,120,212,0.1); }
+
+        /* 保存路径历史下拉 */
+        .path-history-wrap { position: relative; }
+        .path-history {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: #fff;
+            border: 1px solid #ddd;
+            border-top: none;
+            border-radius: 0 0 10px 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            z-index: 10;
+            max-height: 240px;
+            overflow-y: auto;
+        }
+        .path-history.show { display: block; }
+        .path-history-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 14px;
+            cursor: pointer;
+            font-size: 13px;
+            color: #333;
+            transition: background 0.15s;
+            border-bottom: 1px solid #f5f5f5;
+        }
+        .path-history-item:last-child { border-bottom: none; }
+        .path-history-item:hover { background: #f0f7ff; }
+        .path-history-item.match { background: #f0f7ff; }
+        .path-history-item .path-text {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .path-history-item .path-delete {
+            flex-shrink: 0;
+            color: #bbb;
+            font-size: 12px;
+            margin-left: 8px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            transition: all 0.15s;
+            cursor: pointer;
+            background: none;
+            border: none;
+            width: auto;
+        }
+        .path-history-item .path-delete:hover { color: #c62828; background: #fde8e8; }
+        .path-history-empty {
+            padding: 12px 14px;
+            font-size: 12px;
+            color: #999;
+            text-align: center;
+        }
+        button {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 10px;
+            background: #0078d4;
+            color: #fff;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        button:hover:not(:disabled) { background: #006cbd; transform: translateY(-1px); }
+        button:disabled { opacity: 0.4; cursor: not-allowed; }
+        .status {
+            margin-top: 16px;
+            padding: 12px 14px;
+            border-radius: 10px;
+            font-size: 13px;
+            line-height: 1.5;
+            display: none;
+            font-weight: 500;
+        }
+        .status.show { display: flex; align-items: center; gap: 8px; }
+        .status.success { background: #e6f7e9; color: #0a7a1a; border: 1px solid #b3e6c0; }
+        .status.error { background: #fde8e8; color: #c62828; border: 1px solid #f5b3b3; }
+        .status.info { background: #e3f2fd; color: #1565c0; border: 1px solid #b3d9ff; }
+        .status i { font-size: 16px; }
+        .spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(21,101,192,0.2);
+            border-top-color: #1565c0;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* 进度条样式 */
+        .progress-container {
+            margin-top: 16px;
+            display: none;
+        }
+        .progress-container.show { display: block; }
+        .progress-bar-wrapper {
+            width: 100%;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #0078d4, #00a3ff);
+            border-radius: 4px;
+            width: 0%;
+            transition: width 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .progress-bar::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(
+                90deg,
+                transparent 0%,
+                rgba(255,255,255,0.3) 50%,
+                transparent 100%
+            );
+            animation: shimmer 1.5s infinite;
+        }
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+        .progress-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 4px;
+        }
+        .progress-percent {
+            font-weight: 600;
+            color: #0078d4;
+        }
+        .progress-details {
+            font-size: 11px;
+            color: #999;
+        }
+        .progress-merging {
+            font-size: 13px;
+            color: #856404;
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 10px 14px;
+            border-radius: 8px;
+            margin-top: 10px;
+            display: none;
+            align-items: center;
+            gap: 8px;
+        }
+        .progress-merging.show { display: flex; }
+        .footer-meta {
+            margin-top: 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 11px;
+            color: #999;
+        }
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+        }
+        .badge.ok { background: #e6f7e9; color: #0a7a1a; border: 1px solid #b3e6c0; }
+        .badge.warn { background: #fff3cd; color: #856404; border: 1px solid #ffc107; }
+
+        /* 日志区域 */
+        .log-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-height: 0;
+        }
+        .log-header {
+            padding: 14px 32px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #f5f5f5;
+        }
+        .log-panel {
+            flex: 1;
+            padding: 20px 32px;
+            background: #fff;
+            color: #333;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+            font-size: 12px;
+            line-height: 1.7;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        /* 右侧面板 */
+        .right-panel {
+            flex: 1.2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            position: relative;
+            overflow: hidden;
+            background: #f5f5f5;
+        }
+        .right-panel .placeholder {
+            text-align: center;
+            color: #bbb;
+        }
+        .right-panel .placeholder .placeholder-icon {
+            width: 80px;
+            height: 80px;
+            border-radius: 20px;
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+        }
+        .right-panel .placeholder .placeholder-icon i {
+            font-size: 32px;
+            color: #ddd;
+        }
+        .right-panel .placeholder p {
+            font-size: 14px;
+            color: #999;
+        }
+        .right-panel .placeholder .placeholder-hint {
+            font-size: 12px;
+            color: #ccc;
+            margin-top: 6px;
+        }
+        .video-wrap {
+            width: 100%;
+            max-width: 720px;
+            height: 100%;
+            display: none;
+            flex-direction: column;
+            gap: 16px;
+            justify-content: center;
+            align-items: center;
+        }
+        .video-wrap.show { display: flex; }
+        .video-player {
+            max-width: 100%;
+            max-height: calc(100% - 70px);
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            border-radius: 12px;
+            background: #000;
+            border: 1px solid #e0e0e0;
+            outline: none;
+        }
+        .video-info {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+        .video-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: #333;
+            line-height: 1.4;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            min-width: 0;
+            flex: 1;
+        }
+        .video-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-shrink: 0;
+        }
+        .btn-download {
+            padding: 8px 16px;
+            border-radius: 8px;
+            background: #0078d4;
+            color: #fff;
+            font-size: 13px;
+            font-weight: 500;
+            text-decoration: none;
+            border: none;
+            white-space: nowrap;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* 代理开关 */
+        .proxy-group { margin-bottom: 20px; }
+        .proxy-group .proxy-toggle-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            color: #555;
+            user-select: none;
+            margin-bottom: 10px;
+        }
+        .proxy-toggle-label input[type="checkbox"] { display: none; }
+        .proxy-check-box {
+            width: 16px;
+            height: 16px;
+            border: 2px solid #ccc;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: all 0.15s;
+        }
+        .proxy-check-box i { font-size: 10px; color: #fff; opacity: 0; }
+        .proxy-toggle-label input:checked ~ .proxy-check-box {
+            background: #0078d4;
+            border-color: #0078d4;
+        }
+        .proxy-toggle-label input:checked ~ .proxy-check-box i { opacity: 1; }
+        .proxy-url-wrap {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.25s ease, opacity 0.25s ease;
+            opacity: 0;
+        }
+        .proxy-url-wrap.show {
+            max-height: 50px;
+            opacity: 1;
+        }
+
+        @media (max-width: 768px) {
+            body { flex-direction: column; height: auto; overflow: auto; }
+            .left-panel { width: 100% !important; height: auto; border-right: none; border-bottom: 1px solid #e8e8e8; overflow-y: visible; }
+            .right-panel { height: auto; min-height: 50vh; }
+            .input-section { padding: 14px 16px 20px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="left-panel">
+        <div class="input-section">
+            <h1>视频下载</h1>
+            <p class="subtitle">支持 X、Bilibili、Instagram 和 YouTube</p>
+
+            <div class="input-group">
+                <label for="url">视频链接</label>
+                <div class="input-wrap">
+                    <i class="fas fa-link"></i>
+                    <input type="url" id="url" placeholder="粘贴 X、Bilibili、Instagram 或 YouTube 视频链接...">
+                </div>
+            </div>
+
+            <div class="input-group">
+                <label for="outputDir">保存路径</label>
+                <div class="path-history-wrap">
+                    <div class="input-wrap">
+                        <i class="fas fa-folder-open"></i>
+                        <input type="text" id="outputDir" value="" placeholder="选择或输入保存路径..." autocomplete="off">
+                    </div>
+                    <div id="pathHistory" class="path-history"></div>
+                </div>
+            </div>
+
+            <div class="input-group proxy-group">
+                <label class="proxy-toggle-label">
+                    <input type="checkbox" id="useProxy" checked>
+                    <span class="proxy-check-box"><i class="fas fa-check"></i></span>
+                    <span>使用代理</span>
+                </label>
+                <div id="proxyUrlWrap" class="proxy-url-wrap show">
+                    <div class="input-wrap">
+                        <i class="fas fa-link"></i>
+                        <input type="text" id="proxyUrl" value="socks5://127.0.0.1:10808" placeholder="代理地址，如 socks5://127.0.0.1:10808">
+                    </div>
+                </div>
+            </div>
+
+            <button id="downloadBtn" onclick="startDownload()">开始下载</button>
+
+            <div id="progressContainer" class="progress-container">
+                <div class="progress-info">
+                    <span id="progressPercent" class="progress-percent">0%</span>
+                    <span id="progressSpeed" class="progress-details"></span>
+                    <span id="progressEta" class="progress-details"></span>
+                </div>
+                <div class="progress-bar-wrapper">
+                    <div id="progressBar" class="progress-bar"></div>
+                </div>
+                <div id="progressFilename" class="progress-details" style="margin-top: 4px;"></div>
+                <div id="mergingStatus" class="progress-merging">
+                    <span class="spinner"></span>
+                    <span>正在合并视频和音频...</span>
+                </div>
+            </div>
+
+            <div id="status" class="status"></div>
+
+            <div class="footer-meta">
+                <span>FFmpeg</span>
+                {% if ffmpeg_ok %}
+                    <span class="badge ok">已就绪</span>
+                {% else %}
+                    <span class="badge warn">未检测到</span>
+                {% endif %}
+                <span style="margin-left:12px;">Deno</span>
+                {% if deno_ok %}
+                    <span class="badge ok">已就绪</span>
+                {% else %}
+                    <span class="badge warn">未检测到</span>
+                {% endif %}
+            </div>
+        </div>
+
+    </div>
+
+    <div class="right-panel">
+        <div id="placeholder" class="placeholder">
+            <div class="placeholder-icon">
+                <i class="fas fa-video"></i>
+            </div>
+            <p>下载完成后在此预览视频</p>
+            <p class="placeholder-hint">支持 X / Bilibili / Instagram / YouTube 视频</p>
+        </div>
+
+        <div id="videoWrap" class="video-wrap">
+            <video id="videoPlayer" class="video-player" controls></video>
+            <div class="video-info">
+                <div id="videoTitle" class="video-title"></div>
+                <div class="video-actions">
+                    <a id="downloadLink" class="btn-download" href="#" target="_blank">下载文件</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const urlInput = document.getElementById('url');
+        const btn = document.getElementById('downloadBtn');
+        const statusEl = document.getElementById('status');
+        const placeholder = document.getElementById('placeholder');
+        const videoWrap = document.getElementById('videoWrap');
+        const videoPlayer = document.getElementById('videoPlayer');
+        const videoTitle = document.getElementById('videoTitle');
+        const downloadLink = document.getElementById('downloadLink');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressBar = document.getElementById('progressBar');
+        const progressPercent = document.getElementById('progressPercent');
+        const progressSpeed = document.getElementById('progressSpeed');
+        const progressEta = document.getElementById('progressEta');
+        const progressFilename = document.getElementById('progressFilename');
+        const mergingStatus = document.getElementById('mergingStatus');
+
+        let eventSource = null;
+        let savePaths = [];
+
+        // ===== 代理开关 =====
+        const useProxyCheckbox = document.getElementById('useProxy');
+        const proxyUrlWrap = document.getElementById('proxyUrlWrap');
+        useProxyCheckbox.addEventListener('change', function() {
+            proxyUrlWrap.classList.toggle('show', this.checked);
+        });
+
+        // ===== 保存路径历史 =====
+        async function loadSavePaths() {
+            try {
+                const res = await fetch('/down-video/save-paths');
+                const data = await res.json();
+                savePaths = data.paths || [];
+            } catch (e) { savePaths = []; }
+        }
+
+        function renderPathHistory(filter) {
+            const el = document.getElementById('pathHistory');
+            if (!savePaths.length) {
+                el.innerHTML = '<div class="path-history-empty">暂无历史记录</div>';
+                return;
+            }
+            el.innerHTML = savePaths.map(function(p) {
+                var isMatch = filter && p.path.toLowerCase() === filter.toLowerCase();
+                return '<div class="path-history-item' + (isMatch ? ' match' : '') + '" data-path="' + escapePathAttr(p.path) + '">'
+                    + '<span class="path-text">' + escapePathHtml(p.path) + '</span>'
+                    + '</div>';
+            }).join('');
+            el.querySelectorAll('.path-history-item').forEach(function(item) {
+                item.addEventListener('click', function() {
+                    document.getElementById('outputDir').value = item.dataset.path;
+                    hidePathHistory();
+                });
+            });
+        }
+
+        function showPathHistory() {
+            const el = document.getElementById('pathHistory');
+            const val = document.getElementById('outputDir').value.trim();
+            renderPathHistory(val);
+            el.classList.add('show');
+        }
+
+        function hidePathHistory() {
+            document.getElementById('pathHistory').classList.remove('show');
+        }
+
+        async function deleteSavePath(path) {
+            try {
+                await fetch('/down-video/save-paths/delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: path })
+                });
+                savePaths = savePaths.filter(function(p) { return p.path !== path; });
+                const val = document.getElementById('outputDir').value.trim();
+                renderPathHistory(val);
+            } catch (e) {}
+        }
+
+        function escapePathAttr(s) {
+            return (s || '').replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+        }
+        function escapePathHtml(s) {
+            return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        // 保存路径到历史
+        async function saveCurrentPath(path) {
+            if (!path) return;
+            try {
+                await fetch('/down-video/save-paths', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: path })
+                });
+                await loadSavePaths();
+            } catch (e) {}
+        }
+
+        // 输出目录输入框事件
+        const outputDirInput = document.getElementById('outputDir');
+        outputDirInput.addEventListener('focus', showPathHistory);
+        outputDirInput.addEventListener('input', function() {
+            renderPathHistory(this.value.trim());
+        });
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.path-history-wrap')) hidePathHistory();
+        });
+
+        // 页面加载时获取历史
+        loadSavePaths();
+
+        function showStatus(text, type) {
+            const icons = { success: 'fa-check-circle', error: 'fa-times-circle', info: 'fa-info-circle' };
+            statusEl.innerHTML = '<i class="fas ' + (icons[type] || '') + '"></i> ' + text;
+            statusEl.className = 'status show ' + type;
+        }
+        function clearStatus() { statusEl.className = 'status'; }
+
+        function showVideo(filepath, title) {
+            placeholder.style.display = 'none';
+            videoWrap.classList.add('show');
+            videoPlayer.src = '/down-video/file?path=' + encodeURIComponent(filepath);
+            videoTitle.textContent = title || '未命名视频';
+            downloadLink.href = '/down-video/file?path=' + encodeURIComponent(filepath) + '&download=1';
+            downloadLink.setAttribute('download', '');
+        }
+
+        function updateProgress(percent, speed, eta, filename) {
+            progressContainer.classList.add('show');
+            progressBar.style.width = percent + '%';
+            progressPercent.textContent = Math.round(percent) + '%';
+            progressSpeed.textContent = speed ? '速度: ' + speed : '';
+            progressEta.textContent = eta ? '剩余: ' + eta : '';
+            progressFilename.textContent = filename || '';
+        }
+
+        function resetProgress() {
+            progressContainer.classList.remove('show');
+            progressBar.style.width = '0%';
+            progressPercent.textContent = '0%';
+            progressSpeed.textContent = '';
+            progressEta.textContent = '';
+            progressFilename.textContent = '';
+            mergingStatus.classList.remove('show');
+        }
+
+        function generateDownloadId() {
+            return 'dl_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        }
+
+        async function startDownload() {
+            const url = urlInput.value.trim();
+            const outputDir = document.getElementById('outputDir').value.trim();
+            if (!url) {
+                showStatus('请输入视频链接', 'error');
+                return;
+            }
+
+            // 保存当前路径到历史
+            if (outputDir) saveCurrentPath(outputDir);
+
+            btn.disabled = true;
+            clearStatus();
+            showStatus('', 'info');
+            statusEl.innerHTML = '<span class="spinner"></span> 正在下载，请稍候...';
+            statusEl.className = 'status show info';
+
+            videoWrap.classList.remove('show');
+            placeholder.style.display = 'block';
+            videoPlayer.src = '';
+
+            resetProgress();
+
+            const downloadId = generateDownloadId();
+
+            // 启动SSE连接监听进度
+            eventSource = new EventSource('/down-video/progress/' + downloadId);
+            eventSource.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'progress') {
+                        updateProgress(data.percent, data.speed, data.eta, data.filename);
+                    } else if (data.type === 'merging') {
+                        mergingStatus.classList.add('show');
+                        mergingStatus.querySelector('.spinner').style.display = 'inline-block';
+                    } else if (data.type === 'info') {
+                        // 可选：显示信息日志
+                    } else if (data.type === 'error') {
+                        // 可选：显示错误日志
+                    }
+                } catch (e) {
+                    console.error('Error parsing SSE data:', e);
+                }
+            };
+
+            eventSource.onerror = function() {
+                eventSource.close();
+                eventSource = null;
+            };
+
+            try {
+                const res = await fetch('/down-video/download', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        url: url,
+                        output_dir: outputDir,
+                        download_id: downloadId,
+                        use_proxy: useProxyCheckbox.checked,
+                        proxy_url: document.getElementById('proxyUrl').value.trim()
+                    })
+                });
+
+                const data = await res.json();
+
+                // 关闭SSE连接
+                if (eventSource) {
+                    eventSource.close();
+                    eventSource = null;
+                }
+
+                if (data.success) {
+                    updateProgress(100, '', '', '');
+                    showStatus((data.title ? '《' + data.title + '》' : '') + ' 下载完成', 'success');
+                    if (data.filepath) {
+                        showVideo(data.filepath, data.title);
+                    }
+                } else {
+                    showStatus(data.message, 'error');
+                }
+            } catch (err) {
+                // 关闭SSE连接
+                if (eventSource) {
+                    eventSource.close();
+                    eventSource = null;
+                }
+                showStatus('请求失败: ' + err.message, 'error');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        urlInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') startDownload();
+        });
+    </script>
+</body>
+</html>

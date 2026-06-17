@@ -1,0 +1,79 @@
+/* Font Awesome 6.5.0 - Local Subset */
+@font-face {
+  font-family: 'Font Awesome 6 Free';
+  font-style: normal;
+  font-weight: 900;
+  font-display: auto;
+  src: url('webfonts/fa-solid-900.woff2') format('woff2'),
+       url('webfonts/fa-solid-900.ttf') format('truetype');
+}
+
+.fas {
+  font-family: 'Font Awesome 6 Free';
+  font-weight: 900;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-font-smoothing: antialiased;
+  display: inline-block;
+  font-style: normal;
+  font-variant: normal;
+  text-rendering: auto;
+  line-height: 1;
+}
+
+/* 图标定义 */
+.fa-images:before { content: "\f302"; }
+.fa-image:before { content: "\f03e"; }
+.fa-lock:before { content: "\f023"; }
+.fa-video:before { content: "\f03d"; }
+.fa-scissors:before { content: "\f0c4"; }
+.fa-arrow-left:before { content: "\f060"; }
+.fa-search:before { content: "\f002"; }
+.fa-home:before { content: "\f015"; }
+.fa-list:before { content: "\f03a"; }
+.fa-th:before { content: "\f00a"; }
+.fa-book:before { content: "\f02d"; }
+.fa-folder:before { content: "\f07b"; }
+.fa-chart-pie:before { content: "\f200"; }
+.fa-link:before { content: "\f0c1"; }
+.fa-folder-open:before { content: "\f07c"; }
+.fa-folder-plus:before { content: "\f65e"; }
+.fa-check-circle:before { content: "\f058"; }
+.fa-times-circle:before { content: "\f057"; }
+.fa-info-circle:before { content: "\f05a"; }
+.fa-refresh:before { content: "\f021"; }
+.fa-tags:before { content: "\f02c"; }
+.fa-robot:before { content: "\f544"; }
+.fa-clock:before { content: "\f017"; }
+.fa-copy:before { content: "\f0c5"; }
+.fa-check:before { content: "\f00c"; }
+.fa-brain:before { content: "\f5dc"; }
+.fa-chart-bar:before { content: "\f080"; }
+.fa-wrench:before { content: "\f0ad"; }
+.fa-calendar:before { content: "\f073"; }
+.fa-database:before { content: "\f1c0"; }
+.fa-file:before { content: "\f15b"; }
+.fa-play:before { content: "\f04b"; }
+.fa-pause:before { content: "\f04c"; }
+.fa-pen:before { content: "\f303"; }
+.fa-fire:before { content: "\f06d"; }
+.fa-tachometer-alt:before { content: "\f3fd"; }
+.fa-trophy:before { content: "\f091"; }
+.fa-exchange-alt:before { content: "\f362"; }
+.fa-level-up-alt:before { content: "\f3bf"; }
+.fa-chevron-right:before { content: "\f054"; }
+.fa-chevron-left:before { content: "\f053"; }
+.fa-trash:before { content: "\f1f8"; }
+.fa-qrcode:before { content: "\f029"; }
+.fa-code:before { content: "\f121"; }
+.fa-key:before { content: "\f084"; }
+.fa-microphone:before { content: "\f130"; }
+.fa-gear:before,
+.fa-cog:before { content: "\f013"; }
+.fa-times:before { content: "\f00d"; }
+.fa-eye:before { content: "\f06e"; }
+.fa-floppy-disk:before { content: "\f0c7"; }
+.fa-sliders:before { content: "\f1de"; }
+.fa-language:before { content: "\f1ab"; }
+.fa-globe:before { content: "\f0ac"; }
+.fa-stop:before { content: "\f04d"; }
+.fa-download:before { content: "\f019"; }

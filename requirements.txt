@@ -1,0 +1,32 @@
+# Web 框架
+Flask>=2.0.0
+Werkzeug>=2.0.0
+requests>=2.28.0
+
+# 音频处理
+soundfile>=0.12.0
+numpy>=1.20.0
+librosa>=0.9.0
+
+# NLP / 文本处理
+jieba>=0.42.1
+chardet>=5.0.0
+opencc-python-reimplemented>=0.1.7
+langdetect>=1.0.9
+
+# 语音 / AI / 机器学习
+faster-whisper>=1.0.0
+ctranslate2>=3.20.0
+transformers>=4.30.0
+demucs>=4.0.0
+
+# 配置 / 工具
+yt-dlp>=2023.0.0
+python-dotenv>=1.0.0
+PyYAML>=6.0
+ml_collections>=0.1.1
+
+# PyTorch — 请根据 CUDA 版本自行安装
+# CPU:  pip install torch torchvision torchaudio
+# CUDA: pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+torch>=2.0.0

@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='font-awesome.css') }}">
+    <title>视频转音频</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #f5f5f5; color: #333;
+            height: 100vh; overflow: hidden; display: flex;
+        }
+        .left-panel {
+            width: 460px; flex-shrink: 0;
+            display: flex; flex-direction: column;
+            border-right: 1px solid #e8e8e8;
+            background: #fff; height: 100vh; overflow-y: auto;
+        }
+        .left-panel::-webkit-scrollbar { width: 4px; }
+        .left-panel::-webkit-scrollbar-thumb { background: #ddd; border-radius: 2px; }
+        .input-section { padding: 20px 24px 28px; }
+
+        .header { display: flex; align-items: center; margin-bottom: 2px; }
+        .header h1 { font-size: 18px; font-weight: 700; color: #1a1a1a; letter-spacing: -0.01em; }
+        .subtitle { color: #aaa; font-size: 12px; margin-bottom: 16px; }
+
+        .section-card {
+            background: #fafafa; border: 1px solid #f0f0f0;
+            border-radius: 10px; padding: 14px 16px; margin-bottom: 12px;
+        }
+        .section-title {
+            font-size: 11px; font-weight: 600; color: #999;
+            text-transform: uppercase; letter-spacing: 0.06em;
+            margin-bottom: 12px; display: flex; align-items: center; gap: 6px;
+        }
+        .section-title i { font-size: 11px; }
+        .section-title .save-btn {
+            margin-left: auto; padding: 3px 10px; border: 1px solid #e0e0e0;
+            border-radius: 5px; background: #fff; color: #666; font-size: 11px;
+            font-weight: 600; cursor: pointer; transition: all 0.15s;
+            display: inline-flex; align-items: center; gap: 4px;
+        }
+        .section-title .save-btn:hover { background: #f0f0f0; color: #333; border-color: #ccc; }
+
+        .upload-area {
+            border: 2px dashed #e0e0e0; border-radius: 10px;
+            padding: 28px 16px; text-align: center; cursor: pointer;
+            transition: all 0.2s; background: #fff;
+        }
+        .upload-area:hover, .upload-area.dragover {
+            border-color: #0078d4; background: #f0f7ff;
+        }
+        .upload-area i { font-size: 28px; color: #ccc; margin-bottom: 8px; display: block; }
+        .upload-area .label { font-size: 13px; color: #999; }
+        .upload-area .filename { font-size: 13px; color: #0078d4; font-weight: 600; margin-top: 4px; }
+        .upload-area input[type="file"] { display: none; }
+
+        .file-info {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+            margin-top: 8px;
+        }
+        .info-item {
+            background: #fff; border: 1px solid #f0f0f0; border-radius: 6px;
+            padding: 8px 10px; font-size: 12px;
+        }
+        .info-item .info-label { color: #999; font-size: 11px; }
+        .info-item .info-value { font-weight: 600; color: #333; margin-top: 2px; }
+
+        .input-group { margin-bottom: 10px; }
+        .input-group:last-child { margin-bottom: 0; }
+        .input-group label { display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #555; }
+        .input-group select {
+            width: 100%; padding: 7px 10px;
+            border: 1px solid #e0e0e0; border-radius: 6px;
+            background: #fff; color: #333; font-size: 13px;
+            outline: none; transition: all 0.15s ease;
+        }
+        .input-group select:focus { border-color: #0078d4; box-shadow: 0 0 0 2px rgba(0,120,212,0.06); }
+
+        .format-toggle {
+            display: flex; gap: 0; margin-bottom: 12px;
+            border: 1px solid #e0e0e0; border-radius: 6px; overflow: hidden;
+        }
+        .format-btn {
+            flex: 1; padding: 8px 0; text-align: center;
+            font-size: 13px; font-weight: 600; cursor: pointer;
+            background: #fff; color: #999; border: none;
+            transition: all 0.15s;
+        }
+        .format-btn.active {
+            background: #0078d4; color: #fff;
+        }
+        .format-btn:first-child { border-right: 1px solid #e0e0e0; }
+        .format-btn.active:first-child { border-right-color: #0078d4; }
+
+        .action-btn {
+            width: 100%; padding: 10px 18px;
+            border: none; border-radius: 8px;
+            font-size: 14px; font-weight: 600; cursor: pointer;
+            transition: all 0.15s ease;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            margin-top: 14px;
+            background: linear-gradient(135deg, #0a7a1a, #065f12); color: #fff;
+            box-shadow: 0 2px 8px rgba(10,122,26,0.2);
+        }
+        .action-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(10,122,26,0.3); }
+        .action-btn:active:not(:disabled) { transform: translateY(0); }
+        .action-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+        .right-panel {
+            flex: 1; background: #fff;
+            display: flex; flex-direction: column;
+            height: 100vh;
+        }
+        .right-header {
+            padding: 20px 24px 16px;
+            display: flex; align-items: center; justify-content: space-between;
+            border-bottom: 1px solid #e8e8e8;
+        }
+        .right-header h2 { font-size: 15px; font-weight: 600; color: #333; }
+        .right-body {
+            flex: 1; overflow-y: auto; padding: 16px 24px 24px;
+        }
+
+        .progress-bar {
+            width: 100%; height: 6px; background: #f0f0f0; border-radius: 3px;
+            overflow: hidden; margin: 12px 0;
+        }
+        .progress-fill {
+            height: 100%; background: linear-gradient(90deg, #0078d4, #0a7a1a);
+            border-radius: 3px; transition: width 0.3s;
+        }
+        .status-text { font-size: 12px; color: #999; margin: 8px 0; }
+
+        .empty-state {
+            display: flex; flex-direction: column; align-items: center;
+            justify-content: center; height: 100%; color: #ccc;
+        }
+        .empty-state i { font-size: 48px; margin-bottom: 16px; }
+        .empty-state p { font-size: 14px; }
+
+        .result-card {
+            background: #fafafa; border: 1px solid #f0f0f0; border-radius: 10px;
+            padding: 20px; text-align: center;
+        }
+        .result-card .result-icon {
+            width: 48px; height: 48px; border-radius: 12px;
+            display: inline-flex; align-items: center; justify-content: center;
+            font-size: 20px; color: #fff; margin-bottom: 12px;
+            background: linear-gradient(135deg, #0a7a1a, #065f12);
+        }
+        .result-card .result-name { font-size: 14px; font-weight: 600; color: #333; margin-bottom: 4px; }
+        .result-card .result-meta { font-size: 12px; color: #999; margin-bottom: 16px; }
+
+        .result-card audio {
+            width: 100%; margin-bottom: 16px; border-radius: 6px;
+        }
+
+        .result-actions { display: flex; gap: 8px; justify-content: center; }
+        .result-btn {
+            padding: 8px 20px; border: 1px solid #e0e0e0; border-radius: 6px;
+            background: #fff; color: #666; font-size: 13px; font-weight: 600;
+            cursor: pointer; display: flex; align-items: center; gap: 6px;
+            transition: all 0.15s;
+        }
+        .result-btn:hover { background: #f0f0f0; color: #333; border-color: #ccc; }
+        .result-btn.primary { background: #0078d4; color: #fff; border-color: #0078d4; }
+        .result-btn.primary:hover { background: #006cbd; }
+
+        .warn-banner {
+            padding: 10px 14px; border-radius: 6px; font-size: 12px;
+            background: #fff3e0; color: #e65100; border: 1px solid #ffe0b2;
+            margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
+        }
+        .warn-banner i { font-size: 14px; }
+
+        .toast-container { position: fixed; top: 20px; right: 20px; z-index: 200; display: flex; flex-direction: column; gap: 8px; }
+        .toast {
+            padding: 10px 16px; border-radius: 8px; font-size: 13px; font-weight: 500;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15); animation: slideIn 0.3s ease;
+            max-width: 360px;
+        }
+        .toast.success { background: #e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9; }
+        .toast.error { background: #fce4ec; color: #c62828; border: 1px solid #f8bbd0; }
+        .toast.info { background: #e3f2fd; color: #1565c0; border: 1px solid #bbdefb; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+        @media (max-width: 768px) {
+            body { flex-direction: column; height: auto; overflow: auto; }
+            .left-panel { width: 100% !important; height: auto; border-right: none; border-bottom: 1px solid #e8e8e8; overflow-y: visible; }
+            .right-panel { height: auto; min-height: 50vh; }
+            .input-section { padding: 14px 16px 20px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="toast-container" id="toastContainer"></div>
+
+    <div class="left-panel">
+        <div class="input-section">
+            <div class="header">
+                <h1><i class="fas fa-video" style="color:#0078d4;font-size:16px;margin-right:6px;"></i>视频转音频</h1>
+            </div>
+            <p class="subtitle">从视频中提取音频，支持 MP4、MKV、AVI、WebM、MOV、FLV、WMV 格式</p>
+
+            {% if not ffmpeg_ok %}
+            <div class="warn-banner">
+                <i class="fas fa-info-circle"></i>
+                <span>未检测到 FFmpeg，请先安装 FFmpeg 后再使用</span>
+            </div>
+            {% endif %}
+
+            <div class="section-card">
+                <div class="section-title"><i class="fas fa-file"></i> 上传视频</div>
+                <div class="upload-area" id="uploadArea" onclick="document.getElementById('videoInput').click()">
+                    <i class="fas fa-folder-open"></i>
+                    <div class="label" id="uploadLabel">点击或拖拽视频文件到此处</div>
+                    <div class="filename" id="uploadFilename" style="display:none;"></div>
+                    <input type="file" id="videoInput" accept=".mp4,.mkv,.avi,.webm,.mov,.flv,.wmv">
+                </div>
+                <div class="file-info" id="fileInfo" style="display:none;">
+                    <div class="info-item">
+                        <div class="info-label">时长</div>
+                        <div class="info-value" id="infoDur">-</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">文件大小</div>
+                        <div class="info-value" id="infoSize">-</div>
+                    </div>
+                    <div class="info-item" style="grid-column:1/-1;">
+                        <div class="info-label">文件名</div>
+                        <div class="info-value" id="infoName" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">-</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section-card">
+                <div class="section-title">
+                    <i class="fas fa-wrench"></i> 输出设置
+                    <button class="save-btn" onclick="saveConfig()"><i class="fas fa-check"></i> 保存</button>
+                </div>
+
+                <div class="format-toggle" id="formatToggle">
+                    <div class="format-btn active" data-format="mp3" onclick="setFormat('mp3')">MP3</div>
+                    <div class="format-btn" data-format="wav" onclick="setFormat('wav')">WAV</div>
+                </div>
+
+                <div id="mp3Options">
+                    <div class="input-group">
+                        <label>比特率</label>
+                        <select id="mp3Bitrate">
+                            <option value="128k">128 kbps</option>
+                            <option value="192k">192 kbps</option>
+                            <option value="256k">256 kbps</option>
+                            <option value="320k" selected>320 kbps</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="wavOptions" style="display:none;">
+                    <div class="input-group">
+                        <label>采样率</label>
+                        <select id="wavSampleRate">
+                            <option value="original">保持原始</option>
+                            <option value="44100">44100 Hz</option>
+                            <option value="48000">48000 Hz</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <button class="action-btn" id="btnConvert" onclick="doConvert()" disabled>
+                <i class="fas fa-play"></i> 开始转换
+            </button>
+        </div>
+    </div>
+
+    <div class="right-panel">
+        <div class="right-header">
+            <h2><i class="fas fa-exchange-alt" style="color:#999;margin-right:6px;"></i>转换结果</h2>
+        </div>
+        <div class="right-body" id="rightBody">
+            <div class="empty-state" id="emptyState">
+                <i class="fas fa-video"></i>
+                <p>上传视频文件后开始转换</p>
+            </div>
+            <div id="progressSection" style="display:none;">
+                <div class="status-text" id="statusText">正在转换...</div>
+                <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%;"></div></div>
+            </div>
+            <div id="resultSection" style="display:none;">
+                <div class="result-card">
+                    <div class="result-icon"><i class="fas fa-check"></i></div>
+                    <div class="result-name" id="resultName"></div>
+                    <div class="result-meta" id="resultMeta"></div>
+                    <audio id="audioPlayer" controls style="width:100%;"></audio>
+                    <div class="result-actions" style="margin-top:12px;">
+                        <button class="result-btn primary" onclick="doDownload()">
+                            <i class="fas fa-folder-plus"></i> 下载文件
+                        </button>
+                        <button class="result-btn" onclick="doCleanup()">
+                            <i class="fas fa-trash"></i> 清理
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+    var taskId = null;
+    var pollTimer = null;
+    var currentFormat = '{{ config.output_format|default("mp3") }}';
+
+    function showMessage(text, type, duration) {
+        type = type || 'info'; duration = duration || 3000;
+        var t = document.createElement('div');
+        t.className = 'toast ' + type;
+        t.textContent = text;
+        document.getElementById('toastContainer').appendChild(t);
+        setTimeout(function() { t.style.opacity = '0'; t.style.transition = 'opacity 0.3s'; setTimeout(function(){ t.remove(); }, 300); }, duration);
+    }
+
+    function formatSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+        if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
+        return (bytes / 1073741824).toFixed(2) + ' GB';
+    }
+
+    function formatDur(sec) {
+        if (sec < 60) return sec.toFixed(1) + 's';
+        var m = Math.floor(sec / 60);
+        var s = (sec % 60).toFixed(1);
+        return m + 'm ' + s + 's';
+    }
+
+    function setFormat(fmt) {
+        currentFormat = fmt;
+        document.querySelectorAll('.format-btn').forEach(function(b) {
+            b.classList.toggle('active', b.dataset.format === fmt);
+        });
+        document.getElementById('mp3Options').style.display = fmt === 'mp3' ? 'block' : 'none';
+        document.getElementById('wavOptions').style.display = fmt === 'wav' ? 'block' : 'none';
+    }
+
+    function getSettings() {
+        return {
+            output_format: currentFormat,
+            mp3_bitrate: document.getElementById('mp3Bitrate').value,
+            wav_sample_rate: document.getElementById('wavSampleRate').value,
+        };
+    }
+
+    async function saveConfig() {
+        try {
+            var res = await fetch('/mp4-to-audio/config', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(getSettings())
+            });
+            var data = await res.json();
+            if (data.success) showMessage('设置已保存', 'success');
+        } catch (e) {
+            showMessage('保存失败: ' + e.message, 'error');
+        }
+    }
+
+    // 恢复配置
+    (function() {
+        var cfg = {
+            output_format: '{{ config.output_format|default("mp3") }}',
+            mp3_bitrate: '{{ config.mp3_bitrate|default("320k") }}',
+            wav_sample_rate: '{{ config.wav_sample_rate|default("original") }}',
+        };
+        setFormat(cfg.output_format);
+        document.getElementById('mp3Bitrate').value = cfg.mp3_bitrate;
+        document.getElementById('wavSampleRate').value = cfg.wav_sample_rate;
+    })();
+
+    // 上传区
+    var uploadArea = document.getElementById('uploadArea');
+    uploadArea.addEventListener('dragover', function(e) { e.preventDefault(); this.classList.add('dragover'); });
+    uploadArea.addEventListener('dragleave', function() { this.classList.remove('dragover'); });
+    uploadArea.addEventListener('drop', function(e) {
+        e.preventDefault(); this.classList.remove('dragover');
+        if (e.dataTransfer.files.length > 0) uploadFile(e.dataTransfer.files[0]);
+    });
+    document.getElementById('videoInput').addEventListener('change', function() {
+        if (this.files.length > 0) uploadFile(this.files[0]);
+    });
+
+    async function uploadFile(file) {
+        var fd = new FormData();
+        fd.append('video', file);
+        document.getElementById('uploadLabel').textContent = '上传中...';
+        document.getElementById('uploadFilename').style.display = 'none';
+        document.getElementById('fileInfo').style.display = 'none';
+        document.getElementById('btnConvert').disabled = true;
+
+        try {
+            var res = await fetch('/mp4-to-audio/upload', { method: 'POST', body: fd });
+            var data = await res.json();
+            if (!data.success) {
+                showMessage(data.error, 'error');
+                document.getElementById('uploadLabel').textContent = '点击或拖拽视频文件到此处';
+                return;
+            }
+            taskId = data.task_id;
+            document.getElementById('uploadLabel').textContent = '已选择文件';
+            document.getElementById('uploadFilename').textContent = data.filename;
+            document.getElementById('uploadFilename').style.display = 'block';
+            document.getElementById('fileInfo').style.display = 'grid';
+            document.getElementById('infoDur').textContent = data.duration > 0 ? formatDur(data.duration) : '-';
+            document.getElementById('infoSize').textContent = formatSize(data.size);
+            document.getElementById('infoName').textContent = data.filename;
+            document.getElementById('btnConvert').disabled = false;
+
+            document.getElementById('emptyState').style.display = 'flex';
+            document.getElementById('progressSection').style.display = 'none';
+            document.getElementById('resultSection').style.display = 'none';
+        } catch (e) {
+            showMessage('上传失败: ' + e.message, 'error');
+            document.getElementById('uploadLabel').textContent = '点击或拖拽视频文件到此处';
+        }
+    }
+
+    async function doConvert() {
+        if (!taskId) return;
+        var btn = document.getElementById('btnConvert');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-refresh"></i> 转换中...';
+
+        document.getElementById('emptyState').style.display = 'none';
+        document.getElementById('resultSection').style.display = 'none';
+        document.getElementById('progressSection').style.display = 'block';
+        document.getElementById('progressFill').style.width = '0%';
+        document.getElementById('statusText').textContent = '正在转换...';
+
+        var settings = getSettings();
+        settings.task_id = taskId;
+
+        try {
+            var res = await fetch('/mp4-to-audio/convert', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(settings)
+            });
+            var data = await res.json();
+            if (!data.success) {
+                showMessage(data.error, 'error');
+                document.getElementById('progressSection').style.display = 'none';
+                document.getElementById('emptyState').style.display = 'flex';
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-play"></i> 开始转换';
+                return;
+            }
+            startPoll();
+        } catch (e) {
+            showMessage('请求失败: ' + e.message, 'error');
+            document.getElementById('progressSection').style.display = 'none';
+            document.getElementById('emptyState').style.display = 'flex';
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-play"></i> 开始转换';
+        }
+    }
+
+    function startPoll() {
+        if (pollTimer) clearInterval(pollTimer);
+        pollTimer = setInterval(async function() {
+            try {
+                var res = await fetch('/mp4-to-audio/status/' + taskId);
+                var data = await res.json();
+                if (!data.success) return;
+
+                document.getElementById('progressFill').style.width = data.progress + '%';
+                document.getElementById('statusText').textContent = '转换进度: ' + data.progress + '%';
+
+                if (data.status === 'done') {
+                    clearInterval(pollTimer); pollTimer = null;
+                    document.getElementById('progressSection').style.display = 'none';
+                    document.getElementById('resultSection').style.display = 'block';
+                    document.getElementById('resultName').textContent = data.filename;
+                    var fmt = data.output_format === 'mp3' ? 'MP3' : 'WAV';
+                    document.getElementById('resultMeta').textContent = '格式: ' + fmt;
+                    document.getElementById('audioPlayer').src = '/mp4-to-audio/play/' + taskId;
+
+                    var btn = document.getElementById('btnConvert');
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-play"></i> 开始转换';
+                } else if (data.status === 'error') {
+                    clearInterval(pollTimer); pollTimer = null;
+                    showMessage('转换失败: ' + data.error, 'error', 5000);
+                    document.getElementById('progressSection').style.display = 'none';
+                    document.getElementById('emptyState').style.display = 'flex';
+
+                    var btn = document.getElementById('btnConvert');
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-play"></i> 开始转换';
+                }
+            } catch (e) {}
+        }, 500);
+    }
+
+    function doDownload() {
+        if (!taskId) return;
+        var a = document.createElement('a');
+        a.href = '/mp4-to-audio/download/' + taskId;
+        a.download = '';
+        a.click();
+    }
+
+    async function doCleanup() {
+        if (!taskId) return;
+        try {
+            await fetch('/mp4-to-audio/cleanup/' + taskId, { method: 'POST' });
+            showMessage('已清理临时文件', 'success');
+            document.getElementById('resultSection').style.display = 'none';
+            document.getElementById('emptyState').style.display = 'flex';
+            var player = document.getElementById('audioPlayer');
+            player.pause(); player.src = '';
+            taskId = null;
+        } catch (e) {}
+    }
+</script>
+</body>
+</html>

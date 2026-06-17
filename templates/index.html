@@ -1,0 +1,1367 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工具集管理后台</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='font-awesome.css') }}">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            min-height: 100vh;
+            display: flex;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* 侧边栏 */
+        .sidebar {
+            width: 240px;
+            background: #fff;
+            border-right: 1px solid #e0e0e0;
+            padding: 20px 0;
+            display: flex;
+            flex-direction: column;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+        }
+
+        .sidebar-header {
+            padding: 0 20px 24px;
+            border-bottom: 1px solid #e0e0e0;
+            margin-bottom: 20px;
+            display: flex; align-items: flex-start; justify-content: space-between;
+        }
+        .sidebar-header-left { flex: 1; }
+
+        .sidebar-title {
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        .sidebar-subtitle {
+            font-size: 12px;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        .sidebar-settings-btn {
+            width: 30px; height: 30px; border: none; background: none;
+            border-radius: 8px; cursor: pointer; font-size: 14px; color: #bbb;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.15s; flex-shrink: 0; margin-top: 2px;
+        }
+        .sidebar-settings-btn:hover { background: #f0f0f0; color: #666; }
+
+        .nav-section {
+            padding: 0 12px;
+            margin-bottom: 24px;
+        }
+
+        .nav-section-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 0 8px;
+            margin-bottom: 8px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 12px;
+            border-radius: 8px;
+            text-decoration: none;
+            color: #666;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.15s ease;
+            margin-bottom: 2px;
+            cursor: pointer;
+        }
+
+        .nav-item:hover {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .nav-item.active {
+            background: #e8f0fe;
+            color: #0078d4;
+        }
+
+        .nav-item i {
+            width: 20px;
+            height: 20px;
+            margin-right: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+
+        /* 侧边栏搜索 */
+        .sidebar-search {
+            padding: 0 12px;
+            margin-bottom: 16px;
+        }
+        .sidebar-search-input {
+            display: flex;
+            align-items: center;
+            background: #f5f5f5;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 7px 10px;
+            gap: 6px;
+            transition: border-color 0.2s;
+        }
+        .sidebar-search-input:focus-within { border-color: #0078d4; background: #fff; }
+        .sidebar-search-input i { color: #bbb; font-size: 12px; flex-shrink: 0; }
+        .sidebar-search-input input {
+            border: none;
+            background: none;
+            outline: none;
+            font-size: 13px;
+            width: 100%;
+            color: #333;
+        }
+        .sidebar-search-input input::placeholder { color: #bbb; }
+        .nav-item.hidden { display: none; }
+
+        /* 功能设置弹窗 */
+        .feat-modal-overlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.35); z-index: 1000;
+            justify-content: center; align-items: flex-start; padding-top: 60px;
+        }
+        .feat-modal-overlay.show { display: flex; }
+        .feat-modal {
+            background: #fff; border-radius: 12px; width: 380px; max-height: 70vh;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.2); overflow: hidden;
+            display: flex; flex-direction: column;
+        }
+        .feat-modal-header {
+            padding: 14px 18px; border-bottom: 1px solid #eee;
+            display: flex; align-items: center; justify-content: space-between;
+            flex-shrink: 0;
+        }
+        .feat-modal-header h3 { font-size: 14px; font-weight: 600; color: #333; }
+        .feat-modal-close {
+            width: 26px; height: 26px; border: none; background: #f5f5f5;
+            border-radius: 6px; cursor: pointer; font-size: 13px; color: #999;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .feat-modal-close:hover { background: #eee; color: #333; }
+        .feat-modal-body {
+            padding: 12px 18px; overflow-y: auto; flex: 1;
+        }
+        .feat-group-title {
+            font-size: 11px; font-weight: 600; color: #999; text-transform: uppercase;
+            letter-spacing: 0.05em; margin: 12px 0 6px;
+        }
+        .feat-group-title:first-child { margin-top: 0; }
+        .feat-item {
+            display: flex; align-items: center; gap: 8px; padding: 7px 0;
+            font-size: 13px; color: #333; cursor: pointer;
+        }
+        .feat-item input[type="checkbox"] {
+            width: 16px; height: 16px; accent-color: #0078d4; cursor: pointer;
+            flex-shrink: 0;
+        }
+        .feat-modal-footer {
+            padding: 10px 18px; border-top: 1px solid #eee;
+            display: flex; justify-content: flex-end; gap: 8px; flex-shrink: 0;
+        }
+        .feat-modal-footer button {
+            padding: 6px 16px; font-size: 12px; font-weight: 600;
+            border-radius: 6px; cursor: pointer; transition: all 0.15s;
+        }
+        .feat-btn-cancel { border: 1px solid #e0e0e0; background: #fff; color: #666; }
+        .feat-btn-cancel:hover { background: #f5f5f5; color: #333; }
+        .feat-btn-save { border: none; background: #0078d4; color: #fff; }
+        .feat-btn-save:hover { background: #006cbd; }
+
+        /* 主内容区 */
+        .main {
+            flex: 1;
+            margin-left: 240px;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* 顶部导航 */
+        .topbar {
+            height: 56px;
+            background: #fff;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            flex-shrink: 0;
+        }
+
+        .topbar-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #666;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .back-btn {
+            display: none;
+            padding: 6px 12px;
+            background: #f0f0f0;
+            border: none;
+            border-radius: 6px;
+            color: #666;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .back-btn:hover {
+            background: #e0e0e0;
+            color: #333;
+        }
+
+        .back-btn i {
+            margin-right: 6px;
+        }
+
+        .search-box {
+            display: flex;
+            align-items: center;
+            background: #f5f5f5;
+            border-radius: 8px;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            gap: 8px;
+        }
+
+        .search-box i {
+            color: #999;
+        }
+
+        .search-input {
+            background: none;
+            border: none;
+            color: #333;
+            font-size: 13px;
+            outline: none;
+            width: 200px;
+        }
+
+        .search-input::placeholder {
+            color: #999;
+        }
+
+        /* 内容区域 */
+        .content {
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .content iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: #f5f5f5;
+        }
+
+        /* 仪表盘 */
+        .dashboard {
+            padding: 16px;
+            overflow-y: auto;
+            height: 100%;
+        }
+        .dashboard-header {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 16px;
+        }
+        .dashboard-header h2 {
+            font-size: 16px; font-weight: 700; color: #333;
+        }
+        .refresh-btn {
+            padding: 6px 14px; border: 1px solid #e0e0e0; border-radius: 6px;
+            background: #fff; color: #666; font-size: 12px; font-weight: 500;
+            cursor: pointer; display: flex; align-items: center; gap: 5px;
+            transition: all 0.15s ease;
+        }
+        .refresh-btn:hover { background: #f0f0f0; color: #333; border-color: #ccc; }
+        .stat-cards {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .stat-card {
+            flex: 1;
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 14px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .stat-card .icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 17px;
+        }
+        .stat-card .icon.blue { background: #e8f0fe; color: #0078d4; }
+        .stat-card .icon.green { background: #e6f7e9; color: #0a7a1a; }
+        .stat-card .icon.orange { background: #fff3e0; color: #e65100; }
+        .stat-card .icon.purple { background: #f3e8ff; color: #7b1fa2; }
+        .stat-card .icon.red { background: #fce4ec; color: #c62828; }
+        .stat-card .info .sub {
+            font-size: 11px;
+            margin-top: 2px;
+        }
+        .stat-card .info .sub.up { color: #0a7a1a; }
+        .stat-card .info .sub.down { color: #c62828; }
+        .stat-card .info .label {
+            font-size: 11px;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .stat-card .info .value {
+            font-size: 22px;
+            font-weight: 700;
+            color: #333;
+            margin-top: 1px;
+        }
+        .chart-section {
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            margin-bottom: 12px;
+        }
+        .chart-header {
+            padding: 10px 16px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #666;
+            background: #fafafa;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .chart-body {
+            padding: 10px;
+        }
+        .chart-container {
+            width: 100%;
+            height: 260px;
+        }
+        /* 饼图自定义图例 */
+        .pie-chart-wrap {
+            display: flex;
+            gap: 12px;
+            height: 260px;
+        }
+        .pie-legend {
+            width: 180px;
+            flex-shrink: 0;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            padding: 4px 0;
+        }
+        .pie-legend::-webkit-scrollbar { width: 4px; }
+        .pie-legend::-webkit-scrollbar-thumb { background: #ccc; border-radius: 2px; }
+        .pie-legend::-webkit-scrollbar-track { background: transparent; }
+        .pie-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: #333;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: background 0.15s;
+        }
+        .pie-legend-item:hover { background: #f5f5f5; }
+        .pie-legend-item .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .pie-legend-item .name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            flex: 1;
+            min-width: 0;
+            white-space: nowrap;
+        }
+        .pie-legend-item .val {
+            color: #999;
+            font-size: 11px;
+            flex-shrink: 0;
+        }
+        .pie-legend-item.disabled { opacity: 0.5; }
+        .pie-legend-item.disabled .dot { background: #ddd !important; }
+        .pie-legend-item.disabled .name { color: #bbb; }
+        .pie-legend-item.disabled .val { color: #ccc; }
+        .pie-chart-area {
+            flex: 1;
+            min-width: 0;
+        }
+        .chart-row {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        .chart-row .chart-section { flex: 1; margin-bottom: 0; }
+        .chart-header-right {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .chart-header-right select,
+        .chart-header-right input {
+            padding: 4px 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 12px;
+            background: #fff;
+            color: #333;
+            outline: none;
+        }
+        .chart-header-right select:focus,
+        .chart-header-right input:focus {
+            border-color: #0078d4;
+        }
+
+        /* 最近调用表格 */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+        .data-table th {
+            text-align: left;
+            padding: 8px 12px;
+            color: #999;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-size: 11px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .data-table td {
+            padding: 7px 12px;
+            border-bottom: 1px solid #f0f0f0;
+            color: #555;
+        }
+        .data-table tr:last-child td { border-bottom: none; }
+        .data-table tr:hover td { background: #fafafa; }
+        .status-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .status-badge.s2xx { background: #e6f7e9; color: #0a7a1a; }
+        .status-badge.s4xx { background: #fff3e0; color: #e65100; }
+        .status-badge.s5xx { background: #fce4ec; color: #c62828; }
+
+        /* 汉堡按钮 */
+        .hamburger {
+            display: none;
+            width: 36px; height: 36px;
+            background: none; border: none; cursor: pointer;
+            font-size: 18px; color: #333;
+            align-items: center; justify-content: center;
+            border-radius: 6px; transition: background 0.15s;
+        }
+        .hamburger:hover { background: #f0f0f0; }
+
+        /* 侧边栏遮罩 */
+        .sidebar-overlay {
+            display: none;
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.3); z-index: 999;
+        }
+
+        @media (max-width: 768px) {
+            .hamburger { display: flex; }
+
+            .sidebar {
+                z-index: 1000;
+                transform: translateX(-100%);
+                transition: transform 0.25s ease;
+            }
+            .sidebar.open {
+                transform: translateX(0);
+            }
+            .sidebar-overlay.open { display: block; }
+
+            .main {
+                margin-left: 0;
+            }
+
+            .stat-cards {
+                flex-wrap: wrap;
+            }
+            .stat-card {
+                min-width: calc(50% - 8px);
+                flex: 1 1 calc(50% - 8px);
+            }
+
+            .chart-row {
+                flex-direction: column;
+            }
+            .chart-row .chart-section {
+                min-width: 0;
+                margin-bottom: 12px;
+            }
+            .chart-row .chart-section:last-child { margin-bottom: 0; }
+
+            .pie-chart-wrap { flex-direction: column; height: auto; }
+            .pie-legend { width: 100%; max-height: 120px; flex-direction: row; flex-wrap: wrap; }
+
+            .data-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        }
+    </style>
+</head>
+<body>
+    <!-- 侧边栏遮罩 -->
+    <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+    <!-- 侧边栏 -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-header-left">
+                <div class="sidebar-title">LEVIN工具集</div>
+                <div class="sidebar-subtitle">私人工具合集</div>
+            </div>
+            <button class="sidebar-settings-btn" onclick="openFeatModal()" title="功能显示设置">
+                <i class="fas fa-gear"></i>
+            </button>
+        </div>
+
+        <div class="sidebar-search">
+            <div class="sidebar-search-input">
+                <i class="fas fa-search"></i>
+                <input type="text" id="toolSearchInput" placeholder="搜索工具..." oninput="filterTools(this.value)">
+            </div>
+        </div>
+
+        <nav class="nav-section" id="nav-section-overview">
+            <div class="nav-section-title">概览</div>
+        </nav>
+
+        <nav class="nav-section" id="nav-section-tools">
+            <div class="nav-section-title">工具</div>
+        </nav>
+    </aside>
+
+    <!-- 功能显示设置弹窗 -->
+    <div class="feat-modal-overlay" id="featModalOverlay" onclick="closeFeatModal(event)">
+        <div class="feat-modal" onclick="event.stopPropagation()">
+            <div class="feat-modal-header">
+                <h3><i class="fas fa-eye" style="margin-right:6px;color:#999;"></i>功能显示设置</h3>
+                <button class="feat-modal-close" onclick="closeFeatModal()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="feat-modal-body" id="featModalBody"></div>
+            <div class="feat-modal-footer">
+                <button class="feat-btn-cancel" onclick="closeFeatModal()">取消</button>
+                <button class="feat-btn-save" onclick="saveFeatSettings()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主内容区 -->
+    <main class="main">
+        <!-- 顶部导航 -->
+        <header class="topbar">
+            <div class="topbar-title" id="topbar-title">
+                <button class="hamburger" id="hamburger" onclick="toggleSidebar()">
+                    <i class="fas fa-list"></i>
+                </button>
+                <button class="back-btn" id="back-btn" onclick="goBack()">
+                    <i class="fas fa-arrow-left"></i>
+                    返回
+                </button>
+                <button class="back-btn" id="refresh-btn" onclick="refreshTool()" style="display:none;">
+                    <i class="fas fa-refresh"></i>
+                    刷新
+                </button>
+                <span id="title-text">工具集</span>
+            </div>
+        </header>
+
+        <!-- 内容区域 -->
+        <div class="content" id="content">
+            <div class="dashboard" id="dashboard">
+                <div class="dashboard-header">
+                    <h2>仪表盘</h2>
+                    <button class="refresh-btn" onclick="refreshDashboard()"><i class="fas fa-refresh"></i> 刷新</button>
+                </div>
+                <div class="stat-cards">
+                    <div class="stat-card">
+                        <div class="icon blue"><i class="fas fa-wrench"></i></div>
+                        <div class="info">
+                            <div class="label">工具数量</div>
+                            <div class="value" id="stat-tools">-</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="icon green"><i class="fas fa-chart-bar"></i></div>
+                        <div class="info">
+                            <div class="label">本月调用</div>
+                            <div class="value" id="stat-month">-</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="icon blue"><i class="fas fa-calendar"></i></div>
+                        <div class="info">
+                            <div class="label">今日调用</div>
+                            <div class="value" id="stat-today">-</div>
+                            <div class="sub" id="stat-today-diff"></div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="icon orange"><i class="fas fa-clock"></i></div>
+                        <div class="info">
+                            <div class="label">平均响应时间</div>
+                            <div class="value" id="stat-time">-</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="icon purple"><i class="fas fa-check-circle"></i></div>
+                        <div class="info">
+                            <div class="label">成功率</div>
+                            <div class="value" id="stat-success">-</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="icon red"><i class="fas fa-fire"></i></div>
+                        <div class="info">
+                            <div class="label">活跃天数</div>
+                            <div class="value" id="stat-active">-</div>
+                            <div class="sub" id="stat-streak"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chart-row">
+                    <div class="chart-section">
+                        <div class="chart-header">
+                            <i class="fas fa-calendar"></i> 近30天接口调用趋势（折线图）
+                        </div>
+                        <div class="chart-body">
+                            <div class="chart-container" id="daily-chart"></div>
+                        </div>
+                    </div>
+                    <div class="chart-section">
+                        <div class="chart-header">
+                            <i class="fas fa-chart-bar"></i> 接口调用分布（饼图）
+                            <div class="chart-header-right">
+                                <input type="date" id="pie-date" onchange="loadPieChart()" style="padding:4px 8px; border:1px solid #e0e0e0; border-radius:6px; font-size:12px; outline:none;">
+                            </div>
+                        </div>
+                        <div class="chart-body">
+                            <div class="pie-chart-wrap">
+                                <div class="pie-legend" id="pie-legend"></div>
+                                <div class="pie-chart-area chart-container" id="pie-chart"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chart-row">
+                    <div class="chart-section">
+                        <div class="chart-header">
+                            <i class="fas fa-database"></i> 每月接口调用数据
+                            <div class="chart-header-right">
+                                <select id="year-filter" onchange="onYearChange()"></select>
+                                <select id="month-filter" onchange="loadDailyByMonth()"></select>
+                            </div>
+                        </div>
+                        <div class="chart-body">
+                            <div class="chart-container" id="monthly-chart"></div>
+                        </div>
+                    </div>
+                    <div class="chart-section">
+                        <div class="chart-header">
+                            <i class="fas fa-clock"></i> 每日调用时间段分布
+                            <div class="chart-header-right">
+                                <input type="date" id="hourly-date" onchange="loadHourlyChart()">
+                            </div>
+                        </div>
+                        <div class="chart-body">
+                            <div class="chart-container" id="hourly-chart"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chart-row">
+                    <div class="chart-section">
+                        <div class="chart-header">
+                            <i class="fas fa-tachometer-alt"></i> 响应时间分布
+                        </div>
+                        <div class="chart-body">
+                            <div class="chart-container" id="duration-chart"></div>
+                        </div>
+                    </div>
+                    <div class="chart-section">
+                        <div class="chart-header">
+                            <i class="fas fa-trophy"></i> 最慢接口 Top5
+                        </div>
+                        <div class="chart-body">
+                            <div class="chart-container" id="slowest-chart"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chart-row">
+                    <div class="chart-section">
+                        <div class="chart-header">
+                            <i class="fas fa-exchange-alt"></i> 本周 vs 上周对比
+                        </div>
+                        <div class="chart-body">
+                            <div class="chart-container" id="week-chart"></div>
+                        </div>
+                    </div>
+                    <div class="chart-section">
+                        <div class="chart-header">
+                            <i class="fas fa-list"></i> 最近调用记录
+                        </div>
+                        <div class="chart-body" style="max-height:300px; overflow-y:auto;">
+                            <div class="data-table-wrap">
+                            <table class="data-table" id="recent-table">
+                                <thead>
+                                    <tr>
+                                        <th>接口</th>
+                                        <th>状态</th>
+                                        <th>耗时</th>
+                                        <th>时间</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recent-tbody"></tbody>
+                            </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <script src="{{ url_for('static', filename='echarts.min.js') }}"></script>
+    <script>
+        const dashboardHTML = document.getElementById('dashboard').outerHTML;
+        let charts = {};
+
+        // 侧边栏 移动端开关
+        function toggleSidebar() {
+            document.querySelector('.sidebar').classList.toggle('open');
+            document.getElementById('sidebar-overlay').classList.toggle('open');
+        }
+        function closeSidebar() {
+            document.querySelector('.sidebar').classList.remove('open');
+            document.getElementById('sidebar-overlay').classList.remove('open');
+        }
+
+        function disposeCharts() {
+            Object.values(charts).forEach(c => c && c.dispose());
+            charts = {};
+        }
+
+        function showDashboard() {
+            closeSidebar();
+            document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+            document.getElementById('nav-dashboard').classList.add('active');
+            document.getElementById('title-text').textContent = '仪表盘';
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('refresh-btn').style.display = 'none';
+            window._currentToolUrl = null;
+
+            disposeCharts();
+            const content = document.getElementById('content');
+            content.innerHTML = dashboardHTML;
+            loadDashboard();
+        }
+
+        function loadTool(element, url) {
+            closeSidebar();
+            disposeCharts();
+            document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+            element.classList.add('active');
+            document.getElementById('title-text').textContent = element.textContent.trim();
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('refresh-btn').style.display = 'inline-block';
+            window._currentToolUrl = url;
+            document.getElementById('content').innerHTML = `<iframe src="${url}" frameborder="0"></iframe>`;
+        }
+
+        function refreshTool() {
+            if (window._currentToolUrl) {
+                disposeCharts();
+                document.getElementById('content').innerHTML = `<iframe src="${window._currentToolUrl}" frameborder="0"></iframe>`;
+            }
+        }
+
+        function goBack() { showDashboard(); }
+
+        function refreshDashboard() {
+            disposeCharts();
+            const content = document.getElementById('content');
+            content.innerHTML = dashboardHTML;
+            loadDashboard();
+        }
+
+        // ===== 侧边栏工具搜索 =====
+        function filterTools(q) {
+            q = q.trim().toLowerCase();
+            document.querySelectorAll('.nav-section').forEach(function(section) {
+                // 跳过"概览"分区（仪表盘）
+                var title = section.querySelector('.nav-section-title');
+                if (title && title.textContent.trim() === '概览') {
+                    section.style.display = q ? 'none' : '';
+                    return;
+                }
+                var items = section.querySelectorAll('.nav-item');
+                var visible = 0;
+                items.forEach(function(item) {
+                    var text = item.textContent.trim().toLowerCase();
+                    if (!q || text.includes(q)) {
+                        item.classList.remove('hidden');
+                        visible++;
+                    } else {
+                        item.classList.add('hidden');
+                    }
+                });
+                section.style.display = visible ? '' : 'none';
+            });
+        }
+
+        function beijingDate() {
+            var now = new Date();
+            var utc = now.getTime() + now.getTimezoneOffset() * 60000;
+            return new Date(utc + 8 * 3600000);
+        }
+        function beijingDateStr() {
+            var d = beijingDate();
+            var m = ('0' + (d.getMonth() + 1)).slice(-2);
+            var day = ('0' + d.getDate()).slice(-2);
+            return d.getFullYear() + '-' + m + '-' + day;
+        }
+
+        // ============ ECharts 图表 ============
+
+        function initLineChart(id, xData, yData, title) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const chart = echarts.init(el);
+            charts[id] = chart;
+            chart.setOption({
+                tooltip: { trigger: 'axis' },
+                grid: { left: 50, right: 20, top: 30, bottom: 40 },
+                xAxis: { type: 'category', data: xData, axisLabel: { fontSize: 11 } },
+                yAxis: { type: 'value', minInterval: 1 },
+                series: [{
+                    data: yData, type: 'line', smooth: true,
+                    areaStyle: { color: 'rgba(0,120,212,0.15)' },
+                    lineStyle: { color: '#0078d4', width: 2 },
+                    itemStyle: { color: '#0078d4' }
+                }]
+            });
+            chart.on('click', params => {
+                const date = xData[params.dataIndex];
+                document.getElementById('hourly-date').value = date;
+                loadHourlyChart();
+                document.getElementById('hourly-chart').scrollIntoView({ behavior: 'smooth' });
+            });
+            return chart;
+        }
+
+        function initBarChart(id, xData, yData, title, onClickLabel) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const chart = echarts.init(el);
+            charts[id] = chart;
+            chart.setOption({
+                tooltip: { trigger: 'axis' },
+                grid: { left: 50, right: 20, top: 30, bottom: 40 },
+                xAxis: { type: 'category', data: xData, axisLabel: { fontSize: 11 } },
+                yAxis: { type: 'value', minInterval: 1 },
+                series: [{
+                    data: yData, type: 'bar',
+                    itemStyle: { color: '#0078d4', borderRadius: [4, 4, 0, 0] },
+                    barMaxWidth: 30
+                }]
+            });
+            if (onClickLabel === 'date') {
+                chart.on('click', params => {
+                    const date = xData[params.dataIndex];
+                    document.getElementById('hourly-date').value = date;
+                    loadHourlyChart();
+                    document.getElementById('hourly-chart').scrollIntoView({ behavior: 'smooth' });
+                });
+            }
+            return chart;
+        }
+
+        function initPieChart(id, data) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const chart = echarts.init(el);
+            charts[id] = chart;
+            const colors = ['#0078d4', '#0a7a1a', '#e65100', '#7b1fa2', '#c62828', '#00838f', '#ef6c00'];
+            window._pieHiddenSet = window._pieHiddenSet || {};
+            window._pieHiddenSet[id] = window._pieHiddenSet[id] || new Set();
+            var hiddenSet = window._pieHiddenSet[id];
+            var seriesData = data.map(function(d, i) {
+                var item = Object.assign({}, d);
+                if (hiddenSet.has(i)) {
+                    item.itemStyle = { color: '#e0e0e0' };
+                    item.label = { show: false };
+                    item.emphasis = { itemStyle: { color: '#e0e0e0' } };
+                }
+                return item;
+            });
+            chart.setOption({
+                tooltip: {
+                    trigger: 'item',
+                    formatter: function(p) {
+                        if (hiddenSet.has(p.dataIndex)) return '';
+                        return p.name + ': ' + p.value + ' 次 (' + p.percent + '%)';
+                    }
+                },
+                legend: { show: false },
+                color: colors,
+                series: [{
+                    type: 'pie', radius: '70%', center: ['50%', '50%'],
+                    selectedMode: false,
+                    label: {
+                        formatter: function(p) {
+                            if (hiddenSet.has(p.dataIndex)) return '';
+                            return p.percent + '%';
+                        },
+                        fontSize: 11
+                    },
+                    data: seriesData
+                }]
+            });
+            return chart;
+        }
+
+        function togglePieSlice(chartId, index) {
+            var hiddenSet = window._pieHiddenSet && window._pieHiddenSet[chartId];
+            if (!hiddenSet) return;
+            if (hiddenSet.has(index)) {
+                hiddenSet.delete(index);
+            } else {
+                hiddenSet.add(index);
+            }
+        }
+
+        function renderPieLegend(data) {
+            var el = document.getElementById('pie-legend');
+            if (!el) return;
+            var colors = ['#0078d4', '#0a7a1a', '#e65100', '#7b1fa2', '#c62828', '#00838f', '#ef6c00'];
+            var hiddenSet = (window._pieHiddenSet && window._pieHiddenSet['pie-chart']) || new Set();
+            var html = '';
+            for (var i = 0; i < data.length; i++) {
+                var d = data[i];
+                var disabled = hiddenSet.has(i);
+                html += '<div class="pie-legend-item' + (disabled ? ' disabled' : '') + '" data-index="' + i + '">'
+                    + '<span class="dot" style="background:' + colors[i % colors.length] + '"></span>'
+                    + '<span class="name" title="' + d.name + '">' + d.name + '</span>'
+                    + '<span class="val">' + d.value + '</span>'
+                    + '</div>';
+            }
+            el.innerHTML = html;
+            el.querySelectorAll('.pie-legend-item').forEach(function(item) {
+                item.addEventListener('click', function() {
+                    var idx = parseInt(this.dataset.index);
+                    togglePieSlice('pie-chart', idx);
+                    var pieData = window._lastPieData;
+                    if (pieData) {
+                        initPieChart('pie-chart', pieData);
+                        renderPieLegend(pieData);
+                    }
+                });
+            });
+        }
+
+                // ============ 筛选逻辑 ============
+
+        function renderMonthFilter(months) {
+            const monthSelect = document.getElementById('month-filter');
+            const currentMonth = ('0' + (beijingDate().getMonth() + 1)).slice(-2);
+            monthSelect.innerHTML = ['01','02','03','04','05','06','07','08','09','10','11','12'].map(m =>
+                `<option value="${m}" ${m === currentMonth ? 'selected' : ''}>${parseInt(m)} 月</option>`
+            ).join('');
+        }
+
+        async function onYearChange() {
+            const year = document.getElementById('year-filter').value;
+            try {
+                const res = await fetch(`/api/stats?year=${year}`);
+                const data = await res.json();
+                renderMonthFilter(data.months);
+            } catch (e) {}
+            loadDailyByMonth();
+        }
+
+        async function loadDailyByMonth() {
+            const year = document.getElementById('year-filter').value;
+            const month = document.getElementById('month-filter').value;
+            try {
+                const res = await fetch(`/api/stats/daily-by-month?year=${year}&month=${month}`);
+                const data = await res.json();
+                const days = data.daily.map(d => d.day + '日');
+                const counts = data.daily.map(d => d.count);
+                if (charts['monthly-chart']) charts['monthly-chart'].dispose();
+                initBarChart('monthly-chart', days, counts, '每月数据');
+            } catch (e) {
+                console.error('加载月度数据失败:', e);
+            }
+        }
+
+        async function loadHourlyChart() {
+            const date = document.getElementById('hourly-date').value;
+            if (!date) return;
+            try {
+                const res = await fetch(`/api/stats/hourly?date=${date}`);
+                const data = await res.json();
+                const hours = data.hourly.map(h => h.hour + ':00');
+                const counts = data.hourly.map(h => h.count);
+                if (charts['hourly-chart']) charts['hourly-chart'].dispose();
+                initBarChart('hourly-chart', hours, counts, '时段分布');
+            } catch (e) {
+                console.error('加载小时数据失败:', e);
+            }
+        }
+
+        async function loadPieChart() {
+            try {
+                var dateInput = document.getElementById('pie-date');
+                var dateParam = dateInput.value ? '?date=' + dateInput.value : '';
+                const res = await fetch('/api/stats/endpoints' + dateParam);
+                const data = await res.json();
+                const pieData = data.endpoints.map(e => ({
+                    name: e.endpoint.replace(/\//g, '').substring(0, 12) || e.endpoint,
+                    value: e.count
+                }));
+                window._lastPieData = pieData;
+                if (charts['pie-chart']) charts['pie-chart'].dispose();
+                initPieChart('pie-chart', pieData);
+                renderPieLegend(pieData);
+            } catch (e) {
+                console.error('加载饼图数据失败:', e);
+            }
+        }
+
+        // ============ 主加载 ============
+
+        async function loadDashboard() {
+            try {
+                const [statsRes, advRes] = await Promise.all([
+                    fetch('/api/stats'),
+                    fetch('/api/stats/advanced')
+                ]);
+                const data = await statsRes.json();
+                const adv = await advRes.json();
+
+                // 统计卡片
+                document.getElementById('stat-tools').textContent = data.tool_count;
+                document.getElementById('stat-month').textContent = adv.month_count;
+                document.getElementById('stat-time').textContent = data.avg_duration + 'ms';
+                document.getElementById('stat-today').textContent = adv.today_count;
+                document.getElementById('stat-success').textContent = adv.success_rate + '%';
+                const ad = adv.active_days;
+                document.getElementById('stat-active').textContent = ad.total_days + ' 天';
+                document.getElementById('stat-streak').textContent = ad.streak > 0 ? '连续 ' + ad.streak + ' 天' : '';
+
+                // 今日 vs 昨日
+                const diff = adv.today_count - adv.yesterday_count;
+                const diffEl = document.getElementById('stat-today-diff');
+                if (adv.yesterday_count > 0) {
+                    const pct = ((diff / adv.yesterday_count) * 100).toFixed(0);
+                    if (diff > 0) {
+                        diffEl.textContent = '↑ ' + pct + '% 较昨日';
+                        diffEl.className = 'sub up';
+                    } else if (diff < 0) {
+                        diffEl.textContent = '↓ ' + Math.abs(pct) + '% 较昨日';
+                        diffEl.className = 'sub down';
+                    } else {
+                        diffEl.textContent = '与昨日持平';
+                        diffEl.className = 'sub';
+                    }
+                } else {
+                    diffEl.textContent = adv.today_count > 0 ? '昨日无调用' : '';
+                    diffEl.className = 'sub';
+                }
+
+                // 30天趋势折线图
+                const dates = data.daily.map(d => d.date);
+                const counts = data.daily.map(d => d.count);
+                initLineChart('daily-chart', dates, counts);
+
+                // 年份+月份筛选
+                const yearSelect = document.getElementById('year-filter');
+                const currentYear = beijingDate().getFullYear().toString();
+                const years = data.years.length ? data.years : [currentYear];
+                yearSelect.innerHTML = years.map(y =>
+                    `<option value="${y}" ${y === currentYear ? 'selected' : ''}>${y} 年</option>`
+                ).join('');
+                renderMonthFilter(data.months);
+
+                loadDailyByMonth();
+                document.getElementById('pie-date').value = beijingDateStr();
+                loadPieChart();
+
+                document.getElementById('hourly-date').value = beijingDateStr();
+                loadHourlyChart();
+
+                // 新增图表
+                renderDurationChart(adv.duration_distribution);
+                renderSlowestChart(adv.slowest_endpoints);
+                renderWeekChart(adv.week_compare);
+                renderRecentTable(adv.recent_calls);
+
+            } catch (e) {
+                console.error('加载仪表盘失败:', e);
+            }
+        }
+
+        // ============ 新增图表 ============
+
+        function renderDurationChart(data) {
+            const el = document.getElementById('duration-chart');
+            if (!el || !data.length) return;
+            const chart = echarts.init(el);
+            charts['duration-chart'] = chart;
+            const colors = ['#0a7a1a', '#0078d4', '#ef6c00', '#e65100', '#c62828', '#7b1fa2'];
+            chart.setOption({
+                tooltip: { trigger: 'axis' },
+                grid: { left: 60, right: 20, top: 20, bottom: 40 },
+                xAxis: { type: 'category', data: data.map(d => d.label), axisLabel: { fontSize: 11 } },
+                yAxis: { type: 'value', minInterval: 1 },
+                series: [{
+                    data: data.map((d, i) => ({ value: d.count, itemStyle: { color: colors[i] || '#0078d4' } })),
+                    type: 'bar', barMaxWidth: 40,
+                    itemStyle: { borderRadius: [4, 4, 0, 0] }
+                }]
+            });
+        }
+
+        function renderSlowestChart(data) {
+            const el = document.getElementById('slowest-chart');
+            if (!el || !data.length) return;
+            const chart = echarts.init(el);
+            charts['slowest-chart'] = chart;
+            const reversed = data.slice().reverse();
+            chart.setOption({
+                tooltip: {
+                    trigger: 'axis',
+                    formatter: function(params) {
+                        const d = reversed[params[0].dataIndex];
+                        return d.endpoint + '<br/>平均: ' + d.avg_duration + 'ms<br/>最大: ' + d.max_duration + 'ms<br/>次数: ' + d.count;
+                    }
+                },
+                grid: { left: 120, right: 50, top: 10, bottom: 20 },
+                xAxis: { type: 'value', name: 'ms', axisLabel: { fontSize: 11 } },
+                yAxis: {
+                    type: 'category',
+                    data: reversed.map(d => (d.endpoint.replace(/\//g, '') || d.endpoint).substring(0, 15)),
+                    axisLabel: { fontSize: 11 }
+                },
+                series: [{
+                    data: reversed.map(d => d.avg_duration),
+                    type: 'bar', barMaxWidth: 20,
+                    itemStyle: { borderRadius: [0, 4, 4, 0], color: '#e65100' },
+                    label: { show: true, position: 'right', formatter: '{c}ms', fontSize: 11, color: '#666' }
+                }]
+            });
+        }
+
+        function renderWeekChart(data) {
+            const el = document.getElementById('week-chart');
+            if (!el) return;
+            const chart = echarts.init(el);
+            charts['week-chart'] = chart;
+            chart.setOption({
+                tooltip: { trigger: 'axis' },
+                legend: { data: ['本周', '上周'], bottom: 0, textStyle: { fontSize: 12 } },
+                grid: { left: 50, right: 20, top: 20, bottom: 40 },
+                xAxis: { type: 'category', data: data.labels, axisLabel: { fontSize: 11 } },
+                yAxis: { type: 'value', minInterval: 1 },
+                series: [
+                    {
+                        name: '本周', data: data.this_week, type: 'line', smooth: true,
+                        lineStyle: { color: '#0078d4', width: 2 },
+                        itemStyle: { color: '#0078d4' },
+                        areaStyle: { color: 'rgba(0,120,212,0.1)' }
+                    },
+                    {
+                        name: '上周', data: data.last_week, type: 'line', smooth: true,
+                        lineStyle: { color: '#ccc', width: 2, type: 'dashed' },
+                        itemStyle: { color: '#ccc' }
+                    }
+                ]
+            });
+        }
+
+        function renderRecentTable(calls) {
+            const tbody = document.getElementById('recent-tbody');
+            if (!tbody) return;
+            if (!calls.length) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#ccc;padding:24px;">暂无调用记录</td></tr>';
+                return;
+            }
+            tbody.innerHTML = calls.map(c => {
+                const code = c.status_code || 0;
+                let cls = 's2xx';
+                if (code >= 400 && code < 500) cls = 's4xx';
+                else if (code >= 500) cls = 's5xx';
+                const ep = (c.endpoint.replace(/\//g, '') || c.endpoint).substring(0, 20);
+                return `<tr>
+                    <td title="${c.endpoint}">${ep}</td>
+                    <td><span class="status-badge ${cls}">${code}</span></td>
+                    <td>${c.duration_ms}ms</td>
+                    <td>${c.called_at.substring(5, 16)}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        // 窗口缩放自适应
+        window.addEventListener('resize', () => {
+            Object.values(charts).forEach(c => c && c.resize());
+        });
+
+        // ===== 侧边栏动态生成 =====
+        var NAV_ITEMS = [
+            { id: 'dashboard',    name: '仪表盘',              icon: 'fa-chart-bar',    url: null,           section: '概览' },
+            { id: 'data-manage',  name: '数据管理',            icon: 'fa-database',     url: '/data-manage', section: '概览' },
+            { id: 'pin-tu',       name: '路径文件查阅器',      icon: 'fa-images',       url: '/pin-tu',      section: '工具' },
+            { id: 'down-video',   name: 'XBIY视频下载器',     icon: 'fa-video',        url: '/down-video',  section: '工具' },
+            { id: 'content-tag',  name: 'AI生成文章标签',      icon: 'fa-tags',         url: '/content-tag', section: '工具' },
+            { id: 'mp4-to-audio', name: 'VTA 视频转音频', icon: 'fa-video',    url: '/mp4-to-audio',section: '工具' },
+            { id: 'audio-slicer', name: 'AS 智能音频分割', icon: 'fa-scissors',    url: '/audio-slicer',section: '工具' },
+            { id: 'stt',          name: 'STT 语音转文字',      icon: 'fa-microphone',   url: '/stt',         section: '工具' },
+            { id: 'uvr-sep',      name: 'UVR5 人声分离',        icon: 'fa-exchange-alt', url: '/uvr-sep',     section: '工具' },
+            { id: 'rvc',          name: 'RVC 语音音色转换',        icon: 'fa-microphone',   url: '/rvc',         section: '工具' },
+            { id: 'ai-dubbing',   name: 'GPT-SoVITS (引擎版)', icon: 'fa-microphone',   url: '/ai-dubbing',  section: '工具' },
+            { id: 'sovits-tts',   name: 'GPT-SoVITS (接口版)', icon: 'fa-microphone',   url: '/sovits-tts',  section: '工具' },
+            { id: 'fen-ci',       name: 'Jieba 分词网页版',    icon: 'fa-scissors',     url: '/fen-ci',      section: '工具' },
+            { id: 'base64',       name: 'Base64 编码/解码',    icon: 'fa-lock',         url: '/base64-de-in-code', section: '工具' },
+            { id: 'json-format',  name: 'JSON 美化/压缩',      icon: 'fa-code',         url: '/json-format', section: '工具' },
+            { id: 'http-status',  name: 'HTTP 状态码查询',     icon: 'fa-info-circle',  url: '/http-status', section: '工具' },
+            { id: 'url-parser',   name: 'URL 路径解析器',      icon: 'fa-link',         url: '/url-parser',  section: '工具' },
+            { id: 'chmod-calc',   name: 'Chmod 计算器',        icon: 'fa-key',          url: '/chmod-calc',  section: '工具' },
+            { id: 'token-gen',    name: 'Token 随机生成器',    icon: 'fa-lock',         url: '/token-gen',   section: '工具' },
+
+            { id: 'qr-code',      name: 'Qr-code 生成器',      icon: 'fa-qrcode',      url: '/qr-code',     section: '工具' }
+        ];
+
+        var _hiddenFeatures = [];
+
+        function buildSidebar() {
+            var hidden = _hiddenFeatures;
+            var overviewSection = document.getElementById('nav-section-overview');
+            var toolsSection = document.getElementById('nav-section-tools');
+
+            overviewSection.querySelectorAll('.nav-item').forEach(function(el) { el.remove(); });
+            toolsSection.querySelectorAll('.nav-item').forEach(function(el) { el.remove(); });
+
+            NAV_ITEMS.forEach(function(item) {
+                if (hidden.indexOf(item.id) !== -1) return;
+                var a = document.createElement('a');
+                a.className = 'nav-item';
+                a.setAttribute('data-feature', item.id);
+                if (item.id === 'dashboard') {
+                    a.id = 'nav-dashboard';
+                    a.classList.add('active');
+                    a.onclick = function() { showDashboard(); };
+                } else {
+                    a.setAttribute('data-url', item.url);
+                    a.onclick = function() { loadTool(this, item.url); };
+                }
+                a.innerHTML = '<i class="fas ' + item.icon + '"></i>' + item.name;
+                if (item.section === '概览') overviewSection.appendChild(a);
+                else toolsSection.appendChild(a);
+            });
+        }
+
+        function openFeatModal() {
+            var hidden = _hiddenFeatures;
+            var body = document.getElementById('featModalBody');
+            var html = '';
+            var currentSection = '';
+            NAV_ITEMS.forEach(function(f) {
+                if (f.section !== currentSection) {
+                    currentSection = f.section;
+                    html += '<div class="feat-group-title">' + currentSection + '</div>';
+                }
+                var checked = hidden.indexOf(f.id) === -1 ? 'checked' : '';
+                html += '<label class="feat-item"><input type="checkbox" data-feature-id="' + f.id + '" ' + checked + '><span>' + f.name + '</span></label>';
+            });
+            body.innerHTML = html;
+            document.getElementById('featModalOverlay').classList.add('show');
+        }
+
+        function closeFeatModal(e) {
+            if (e && e.target !== document.getElementById('featModalOverlay')) return;
+            document.getElementById('featModalOverlay').classList.remove('show');
+        }
+
+        function saveFeatSettings() {
+            var hidden = [];
+            document.querySelectorAll('#featModalBody input[type="checkbox"]').forEach(function(cb) {
+                if (!cb.checked) hidden.push(cb.getAttribute('data-feature-id'));
+            });
+            fetch('/api/sidebar-config', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({hidden_features: hidden})
+            })
+            .then(function(r) { return r.json(); })
+            .then(function() {
+                _hiddenFeatures = hidden;
+                buildSidebar();
+                document.getElementById('featModalOverlay').classList.remove('show');
+            });
+        }
+
+        // 页面加载时从接口获取配置再构建侧边栏
+        fetch('/api/sidebar-config')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            _hiddenFeatures = data.hidden_features || [];
+            buildSidebar();
+            loadDashboard();
+        })
+        .catch(function() {
+            buildSidebar();
+            loadDashboard();
+        });
+    </script>
+</body>
+</html>

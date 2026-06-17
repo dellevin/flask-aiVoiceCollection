@@ -1,0 +1,11 @@
+{
+  "hidden_features": [
+    "sovits-tts",
+    "json-format",
+    "http-status",
+    "url-parser",
+    "chmod-calc",
+    "token-gen",
+    "qr-code"
+  ]
+}

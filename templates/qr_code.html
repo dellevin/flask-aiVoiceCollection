@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='font-awesome.css') }}">
+    <title>二维码生成器</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #f5f5f5; color: #333;
+            height: 100vh; overflow-y: auto;
+        }
+        .container { max-width: 700px; margin: 0 auto; padding: 24px 28px 40px; }
+
+        .header { display: flex; align-items: center; margin-bottom: 2px; }
+        .header h1 { font-size: 18px; font-weight: 700; color: #1a1a1a; }
+        .subtitle { color: #aaa; font-size: 12px; margin-bottom: 16px; }
+
+        .section-card {
+            background: #fafafa; border: 1px solid #f0f0f0;
+            border-radius: 10px; padding: 14px 16px; margin-bottom: 12px;
+        }
+        .section-title {
+            font-size: 11px; font-weight: 600; color: #999;
+            text-transform: uppercase; letter-spacing: 0.06em;
+            margin-bottom: 12px; display: flex; align-items: center; gap: 6px;
+        }
+        .section-title i { font-size: 11px; }
+
+        /* 输入 */
+        .input-group { margin-bottom: 10px; }
+        .input-group:last-child { margin-bottom: 0; }
+        .input-group label { display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #555; }
+        textarea {
+            width: 100%; padding: 10px 12px;
+            border: 1px solid #e0e0e0; border-radius: 6px;
+            font-size: 13px; outline: none; resize: vertical;
+            min-height: 60px; font-family: inherit; transition: border-color 0.15s;
+            line-height: 1.5;
+        }
+        textarea:focus { border-color: #0078d4; box-shadow: 0 0 0 2px rgba(0,120,212,0.06); }
+
+        /* 选择框 */
+        .styled-select {
+            width: 100%; padding: 7px 30px 7px 10px;
+            border: 1px solid #e0e0e0; border-radius: 6px;
+            font-size: 13px; color: #333; background: #fff;
+            outline: none; cursor: pointer; appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%23999' d='M5 7L1 3h8z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat; background-position: right 10px center;
+            transition: border-color 0.15s;
+        }
+        .styled-select:focus { border-color: #0078d4; box-shadow: 0 0 0 2px rgba(0,120,212,0.06); }
+
+        /* 颜色选择 */
+        .color-row { display: flex; gap: 10px; }
+        .color-item { flex: 1; }
+        .color-item label { display: block; font-size: 12px; font-weight: 500; color: #555; margin-bottom: 4px; }
+        .color-input {
+            display: flex; align-items: center; gap: 8px;
+            border: 1px solid #e0e0e0; border-radius: 6px; padding: 5px 10px; background: #fff;
+        }
+        .color-input input[type="color"] {
+            width: 26px; height: 26px; border: none; padding: 0; cursor: pointer;
+            border-radius: 4px; background: none;
+        }
+        .color-input span {
+            font-size: 12px; font-family: "SFMono-Regular", Consolas, monospace; color: #888;
+        }
+
+        /* 按钮 */
+        .run-btn {
+            width: 100%; padding: 10px 18px;
+            background: linear-gradient(135deg, #0078d4, #005fa3);
+            color: #fff; border: none; border-radius: 8px;
+            font-size: 14px; font-weight: 600; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            margin-top: 12px; transition: all 0.15s;
+            box-shadow: 0 2px 8px rgba(0,120,212,0.2);
+        }
+        .run-btn:hover { background: linear-gradient(135deg, #006cbd, #004e8a); transform: translateY(-1px); }
+
+        /* 结果 */
+        .result-card {
+            background: #fff; border: 1px solid #f0f0f0;
+            border-radius: 10px; padding: 24px;
+            text-align: center;
+        }
+        .qr-box {
+            display: inline-block; padding: 16px; background: #fafafa;
+            border: 1px solid #e8e8e8; border-radius: 8px;
+        }
+        .qr-box canvas { display: block; }
+        .qr-hint { margin-top: 10px; font-size: 12px; color: #ccc; }
+        .btn-row { display: flex; gap: 8px; justify-content: center; margin-top: 14px; }
+        .btn {
+            padding: 7px 14px; border: none; border-radius: 6px;
+            font-size: 12px; font-weight: 600; cursor: pointer;
+            transition: all 0.12s ease;
+            display: inline-flex; align-items: center; gap: 5px;
+        }
+        .btn-outline { background: #fff; color: #666; border: 1px solid #e0e0e0; }
+        .btn-outline:hover { background: #f5f5f5; color: #333; }
+
+        @media (max-width: 768px) {
+            .container { padding: 14px 16px 28px; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1><i class="fas fa-qrcode" style="color:#0078d4;font-size:16px;margin-right:6px;"></i>二维码生成器</h1>
+    </div>
+    <p class="subtitle">文本 / URL 转二维码</p>
+
+    <!-- 配置 -->
+    <div class="section-card">
+        <div class="section-title"><i class="fas fa-sliders"></i> 配置</div>
+        <div class="input-group">
+            <label>内容</label>
+            <textarea id="qrText" placeholder="输入文字或链接..." oninput="generate()">https://example.com</textarea>
+        </div>
+        <div class="color-row" style="margin-top:10px;">
+            <div class="color-item">
+                <label>前景色</label>
+                <div class="color-input">
+                    <input type="color" id="fgColor" value="#000000" onchange="generate()">
+                    <span id="fgHex">#000000</span>
+                </div>
+            </div>
+            <div class="color-item">
+                <label>背景色</label>
+                <div class="color-input">
+                    <input type="color" id="bgColor" value="#ffffff" onchange="generate()">
+                    <span id="bgHex">#ffffff</span>
+                </div>
+            </div>
+        </div>
+        <div class="input-group" style="margin-top:10px;">
+            <label>纠错级别</label>
+            <select id="ecLevel" class="styled-select" onchange="generate()">
+                <option value="L">低 (7%)</option>
+                <option value="M" selected>中 (15%)</option>
+                <option value="Q">较高 (25%)</option>
+                <option value="H">高 (30%)</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- 结果 -->
+    <div class="result-card">
+        <div class="qr-box"><canvas id="qrCanvas"></canvas></div>
+        <div class="qr-hint" id="qrHint"></div>
+        <div class="btn-row">
+            <button class="btn btn-outline" onclick="downloadQR()"><i class="fas fa-download"></i> 下载二维码</button>
+            <button class="btn btn-outline" onclick="copyQR()"><i class="fas fa-copy"></i> 复制到剪贴板</button>
+        </div>
+    </div>
+</div>
+
+<script src="/static/qrcode.min.js"></script>
+<script>
+function generate(){
+    var text=document.getElementById('qrText').value.trim();
+    var canvas=document.getElementById('qrCanvas');
+    var ctx=canvas.getContext('2d');
+    var hint=document.getElementById('qrHint');
+    var fg=document.getElementById('fgColor').value;
+    var bg=document.getElementById('bgColor').value;
+    document.getElementById('fgHex').textContent=fg;
+    document.getElementById('bgHex').textContent=bg;
+    if(!text){canvas.width=0;canvas.height=0;hint.textContent='';return;}
+    var ec=document.getElementById('ecLevel').value;
+    try{
+        var qr=qrcode(0,ec);
+        qr.addData(text);qr.make();
+        var modules=qr.getModuleCount();
+        var cellSize=6;var margin=cellSize*2;
+        var size=modules*cellSize+margin*2;
+        canvas.width=size;canvas.height=size;
+        ctx.fillStyle=bg;ctx.fillRect(0,0,size,size);
+        ctx.fillStyle=fg;
+        for(var r=0;r<modules;r++){
+            for(var c=0;c<modules;c++){
+                if(qr.isDark(r,c)){
+                    ctx.fillRect(margin+c*cellSize,margin+r*cellSize,cellSize,cellSize);
+                }
+            }
+        }
+        hint.textContent=modules+' x '+modules+' 模块';
+    }catch(e){
+        canvas.width=0;canvas.height=0;
+        hint.textContent='生成失败: '+e.message;
+    }
+}
+
+function downloadQR(){
+    var canvas=document.getElementById('qrCanvas');
+    if(!canvas.width)return;
+    var a=document.createElement('a');
+    a.download='qrcode.png';
+    a.href=canvas.toDataURL('image/png');
+    a.click();
+}
+
+function copyQR(){
+    var canvas=document.getElementById('qrCanvas');
+    if(!canvas.width)return;
+    canvas.toBlob(function(blob){
+        if(navigator.clipboard&&navigator.clipboard.write){
+            navigator.clipboard.write([new ClipboardItem({'image/png':blob})]).then(function(){
+                showToast('已复制到剪贴板');
+            });
+        }else{
+            showToast('浏览器不支持复制图片');
+        }
+    });
+}
+
+function showToast(msg){
+    var t=document.createElement('div');
+    t.textContent=msg;
+    t.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#0a7a1a;color:#fff;padding:10px 24px;border-radius:8px;font-size:13px;font-weight:500;box-shadow:0 4px 12px rgba(0,0,0,0.15);z-index:9999;transition:opacity 0.3s;';
+    document.body.appendChild(t);
+    setTimeout(function(){t.style.opacity='0';},1200);
+    setTimeout(function(){document.body.removeChild(t);},1500);
+}
+
+generate();
+</script>
+</body>
+</html>

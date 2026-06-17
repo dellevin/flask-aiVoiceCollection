@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>搜索 - {{ root_display }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='font-awesome.css') }}">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            min-height: 100vh;
+        }
+        .search-header {
+            background: #fff;
+            border-bottom: 1px solid #e0e0e0;
+            padding: 14px 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            color: #0078d4;
+            text-decoration: none;
+            transition: background 0.15s;
+        }
+        .back-link:hover { background: #e8f0fe; }
+        .search-bar {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 8px 14px;
+            gap: 8px;
+            transition: border-color 0.2s;
+            max-width: 600px;
+        }
+        .search-bar:focus-within { border-color: #0078d4; }
+        .search-bar i { color: #999; }
+        .search-bar input {
+            flex: 1;
+            border: none;
+            background: none;
+            outline: none;
+            font-size: 14px;
+            color: #333;
+        }
+        .search-bar input::placeholder { color: #bbb; }
+        .search-bar .clear-btn {
+            color: #ccc;
+            cursor: pointer;
+            font-size: 14px;
+            transition: color 0.15s;
+        }
+        .search-bar .clear-btn:hover { color: #999; }
+        .search-bar .go-btn {
+            background: #0078d4;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            padding: 6px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s;
+            white-space: nowrap;
+            margin-left: 4px;
+        }
+        .search-bar .go-btn:hover { background: #006cbd; }
+        .search-status {
+            padding: 10px 20px;
+            font-size: 12px;
+            color: #999;
+            background: #fff;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .search-content {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 16px 20px;
+        }
+        .result-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 16px;
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.15s;
+            gap: 12px;
+        }
+        .result-item:hover { border-color: #0078d4; background: #f0f8ff; }
+        .result-icon {
+            font-size: 20px;
+            width: 28px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+        .result-icon.folder { color: #ffb300; }
+        .result-icon.image { color: #0078d4; }
+        .result-icon.video { color: #e53935; }
+        .result-icon.file { color: #999; }
+        .result-info { flex: 1; min-width: 0; }
+        .result-name { font-size: 14px; font-weight: 500; }
+        .result-name mark { background: #fff3cd; color: #333; padding: 0 1px; border-radius: 2px; }
+        .result-path { font-size: 12px; color: #999; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .result-actions {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+        .result-type {
+            font-size: 11px;
+            color: #999;
+            background: #f0f0f0;
+            padding: 2px 8px;
+            border-radius: 4px;
+            flex-shrink: 0;
+        }
+        .btn-copy {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 30px; height: 30px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            background: #fff;
+            color: #999;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.15s;
+            flex-shrink: 0;
+        }
+        .btn-copy:hover { background: #f0f0f0; color: #333; border-color: #ccc; }
+        .btn-copy.copied { background: #e8f5e9; color: #2e7d32; border-color: #a5d6a7; }
+        .empty-state {
+            text-align: center;
+            padding: 80px 20px;
+            color: #ccc;
+        }
+        .empty-state i { font-size: 48px; margin-bottom: 16px; display: block; }
+        .empty-state p { font-size: 14px; }
+        .loading { text-align: center; padding: 40px; color: #999; font-size: 13px; }
+        .spinner {
+            display: inline-block;
+            width: 14px; height: 14px;
+            border: 2px solid rgba(0,120,212,0.2);
+            border-top-color: #0078d4;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* 搜索历史 */
+        .history-section {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 16px 20px 0;
+        }
+        .history-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        .history-header h3 {
+            font-size: 13px;
+            color: #999;
+            font-weight: 600;
+        }
+        .history-clear-btn {
+            font-size: 12px;
+            color: #999;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: all 0.15s;
+        }
+        .history-clear-btn:hover { color: #c62828; background: #fce4ec; }
+        .history-list { display: flex; flex-wrap: wrap; gap: 8px; }
+        .history-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 20px;
+            font-size: 13px;
+            color: #555;
+            cursor: pointer;
+            transition: all 0.15s;
+            user-select: none;
+        }
+        .history-item:hover { border-color: #0078d4; color: #0078d4; background: #f0f8ff; }
+        .history-item .hi-keyword { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .history-item .hi-count {
+            font-size: 11px;
+            color: #bbb;
+        }
+        .history-item .hi-del {
+            color: #ccc;
+            font-size: 11px;
+            padding: 0 2px;
+            border-radius: 3px;
+            transition: all 0.15s;
+            line-height: 1;
+        }
+        .history-item .hi-del:hover { color: #c62828; background: #fce4ec; }
+
+        /* 自定义确认弹窗 */
+        .confirm-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.4);
+            display: flex; justify-content: center; align-items: center;
+            z-index: 10000; opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+        }
+        .confirm-overlay.active { opacity: 1; pointer-events: auto; }
+        .confirm-card {
+            background: #fff; border-radius: 14px; padding: 28px 32px;
+            width: 360px; max-width: 90vw; text-align: center;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.2);
+            transform: scale(0.9); transition: transform 0.2s ease;
+        }
+        .confirm-overlay.active .confirm-card { transform: scale(1); }
+        .confirm-icon {
+            width: 48px; height: 48px; border-radius: 50%;
+            background: #fff3e0; color: #e65100;
+            display: inline-flex; align-items: center; justify-content: center;
+            font-size: 22px; margin-bottom: 14px;
+        }
+        .confirm-title { font-size: 16px; font-weight: 600; color: #333; margin-bottom: 8px; }
+        .confirm-msg { font-size: 13px; color: #888; margin-bottom: 24px; line-height: 1.5; }
+        .confirm-btns { display: flex; gap: 10px; justify-content: center; }
+        .confirm-btns button {
+            flex: 1; padding: 10px 20px; border: none; border-radius: 8px;
+            font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.15s;
+        }
+        .confirm-cancel { background: #f0f0f0; color: #666; }
+        .confirm-cancel:hover { background: #e0e0e0; }
+        .confirm-ok { background: #c62828; color: #fff; }
+        .confirm-ok:hover { background: #b71c1c; }
+    </style>
+</head>
+<body>
+    <div class="search-header">
+        <a href="/pin-tu/browse/{{ root_b64 }}" class="back-link"><i class="fas fa-arrow-left"></i> 返回</a>
+        <div class="search-bar">
+            <i class="fas fa-search"></i>
+            <input type="text" id="searchInput" value="{{ query }}" placeholder="搜索文件或文件夹..." autofocus>
+            <span class="clear-btn" onclick="clearSearch()"><i class="fas fa-times-circle"></i></span>
+            <button class="go-btn" onclick="doSearch()">搜索</button>
+        </div>
+    </div>
+
+    <!-- 搜索历史 -->
+    <div class="history-section" id="historySection" style="display:none;">
+        <div class="history-header">
+            <h3><i class="fas fa-clock"></i> 搜索历史</h3>
+            <button class="history-clear-btn" onclick="clearAllHistory()">清空历史</button>
+        </div>
+        <div class="history-list" id="historyList"></div>
+    </div>
+
+    <div class="search-status" id="searchStatus" style="display:none;"></div>
+    <div class="search-content" id="searchContent">
+        {% if query %}
+            <div class="loading"><span class="spinner"></span>搜索中...</div>
+        {% else %}
+        <div class="empty-state">
+            <i class="fas fa-search"></i>
+            <p>输入关键词搜索文件和文件夹</p>
+        </div>
+        {% endif %}
+    </div>
+
+<!-- 自定义确认弹窗 -->
+<div class="confirm-overlay" id="confirmOverlay">
+    <div class="confirm-card">
+        <div class="confirm-icon"><i class="fas fa-times-circle"></i></div>
+        <div class="confirm-title" id="confirmTitle">确认操作</div>
+        <div class="confirm-msg" id="confirmMsg">确定要执行此操作吗？</div>
+        <div class="confirm-btns">
+            <button class="confirm-cancel" onclick="confirmResolve(false)">取消</button>
+            <button class="confirm-ok" id="confirmOkBtn" onclick="confirmResolve(true)">确定</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let _confirmResolver = null;
+
+    function showConfirm(title, msg, okText) {
+        document.getElementById('confirmTitle').textContent = title || '确认操作';
+        document.getElementById('confirmMsg').textContent = msg || '确定要执行此操作吗？';
+        document.getElementById('confirmOkBtn').textContent = okText || '确定';
+        document.getElementById('confirmOverlay').classList.add('active');
+        return new Promise(function(resolve) { _confirmResolver = resolve; });
+    }
+
+    function confirmResolve(val) {
+        document.getElementById('confirmOverlay').classList.remove('active');
+        if (_confirmResolver) { _confirmResolver(val); _confirmResolver = null; }
+    }
+
+    const ROOT_B64 = '{{ root_b64 }}';
+    const input = document.getElementById('searchInput');
+    const content = document.getElementById('searchContent');
+    const status = document.getElementById('searchStatus');
+    const historySection = document.getElementById('historySection');
+    const historyList = document.getElementById('historyList');
+    let lastResults = [];
+
+    const extImage = {'JPG':1,'JPEG':1,'PNG':1,'GIF':1,'BMP':1,'TIFF':1,'WEBP':1};
+    const extVideo = {'MP4':1,'AVI':1,'MOV':1,'WMV':1,'FLV':1,'WEBM':1,'M4V':1,'MKV':1};
+
+    function getIcon(r) {
+        if (r.type === 'folder') return { cls: 'folder', icon: 'fa-folder' };
+        if (extImage[r.type]) return { cls: 'image', icon: 'fa-image' };
+        if (extVideo[r.type]) return { cls: 'video', icon: 'fa-video' };
+        return { cls: 'file', icon: 'fa-file' };
+    }
+
+    function escapeHtml(text) {
+        const d = document.createElement('div');
+        d.textContent = text;
+        return d.innerHTML;
+    }
+
+    function highlight(text, q) {
+        if (!q) return escapeHtml(text);
+        const escaped = escapeHtml(text);
+        const re = new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+        return escaped.replace(re, '<mark>$1</mark>');
+    }
+
+    // ===== 复制 =====
+    function copyName(idx) {
+        var r = lastResults[idx];
+        if (!r) return;
+        var name = r.name;
+        var btn = document.querySelector('.btn-copy[data-idx="' + idx + '"]');
+        // 始终用 textarea + execCommand，兼容 HTTP 环境
+        var ta = document.createElement('textarea');
+        ta.value = name;
+        ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px;opacity:0;';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        try {
+            document.execCommand('copy');
+            if (btn) {
+                btn.classList.add('copied');
+                btn.innerHTML = '<i class="fas fa-check"></i>';
+                setTimeout(function() {
+                    btn.classList.remove('copied');
+                    btn.innerHTML = '<i class="fas fa-copy"></i>';
+                }, 1500);
+            }
+        } catch (e) {
+            alert('复制失败，请手动复制');
+        }
+        document.body.removeChild(ta);
+    }
+
+    // ===== 搜索 =====
+    function clearSearch() {
+        input.value = '';
+        content.innerHTML = '<div class="empty-state"><i class="fas fa-search"></i><p>输入关键词搜索文件和文件夹</p></div>';
+        status.style.display = 'none';
+        lastResults = [];
+        input.focus();
+        loadHistory();
+    }
+
+    function renderResults(data, q) {
+        lastResults = data.results;
+        status.style.display = 'block';
+        if (!data.results.length) {
+            status.textContent = '未找到匹配"' + q + '"的结果';
+            content.innerHTML = '<div class="empty-state"><i class="fas fa-search"></i><p>未找到匹配结果</p></div>';
+            return;
+        }
+        status.textContent = '找到 ' + data.results.length + ' 个结果' + (data.results.length >= 50 ? '（最多显示50条）' : '');
+        historySection.style.display = 'none';
+
+        content.innerHTML = data.results.map(function(r, idx) {
+            var ic = getIcon(r);
+            var parent = r.path.includes('/') ? r.path.substring(0, r.path.lastIndexOf('/')) : '';
+            return '<div class="result-item" data-idx="' + idx + '">' +
+                '<span class="result-icon ' + ic.cls + '"><i class="fas ' + ic.icon + '"></i></span>' +
+                '<div class="result-info">' +
+                    '<div class="result-name">' + highlight(r.name, q) + '</div>' +
+                    (parent ? '<div class="result-path">' + escapeHtml(parent) + '</div>' : '') +
+                '</div>' +
+                '<div class="result-actions">' +
+                    '<span class="result-type">' + escapeHtml(r.type) + '</span>' +
+                    '<button class="btn-copy" data-idx="' + idx + '" title="复制名称"><i class="fas fa-copy"></i></button>' +
+                '</div>' +
+            '</div>';
+        }).join('');
+
+        // 绑定点击事件
+        content.querySelectorAll('.result-item').forEach(function(el) {
+            el.addEventListener('click', function(e) {
+                // 如果点的是复制按钮，不跳转
+                if (e.target.closest('.btn-copy')) return;
+                goResult(parseInt(this.dataset.idx));
+            });
+        });
+        content.querySelectorAll('.btn-copy').forEach(function(btn) {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                copyName(parseInt(this.dataset.idx));
+            });
+        });
+    }
+
+    async function doSearch() {
+        var q = input.value.trim();
+        if (!q) {
+            content.innerHTML = '<div class="empty-state"><i class="fas fa-search"></i><p>输入关键词搜索文件和文件夹</p></div>';
+            status.style.display = 'none';
+            lastResults = [];
+            loadHistory();
+            return;
+        }
+        content.innerHTML = '<div class="loading"><span class="spinner"></span>搜索中...</div>';
+        status.style.display = 'none';
+        historySection.style.display = 'none';
+
+        try {
+            var res = await fetch('/pin-tu/search/' + ROOT_B64 + '?q=' + encodeURIComponent(q));
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            var data = await res.json();
+            renderResults(data, q);
+            // 记录搜索历史
+            recordSearch(q, data.results.length);
+        } catch (e) {
+            lastResults = [];
+            content.innerHTML = '<div class="empty-state"><p style="color:#c62828;">搜索请求失败：' + escapeHtml(e.message) + '</p></div>';
+        }
+    }
+
+    function goResult(idx) {
+        var r = lastResults[idx];
+        if (!r) return;
+        var folder = r.type === 'folder' ? r.path : (r.path.includes('/') ? r.path.substring(0, r.path.lastIndexOf('/')) : '');
+        var url = '/pin-tu/browse/' + ROOT_B64;
+        var params = [];
+        if (folder) params.push('p=' + encodeURIComponent(folder));
+        if (extImage[r.type]) params.push('open=' + encodeURIComponent(r.name));
+        else if (extVideo[r.type]) params.push('openVideo=' + encodeURIComponent(r.name));
+        if (params.length) url += '?' + params.join('&');
+        window.location.href = url;
+    }
+
+    // ===== 搜索历史 =====
+    async function recordSearch(keyword, count) {
+        try {
+            await fetch('/pin-tu/api/search-history/' + ROOT_B64, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ keyword: keyword, result_count: count })
+            });
+        } catch (e) { /* 静默失败 */ }
+    }
+
+    async function loadHistory() {
+        try {
+            var res = await fetch('/pin-tu/api/search-history/' + ROOT_B64);
+            var data = await res.json();
+            if (!data.history || !data.history.length) {
+                historySection.style.display = 'none';
+                return;
+            }
+            historySection.style.display = 'block';
+            historyList.innerHTML = data.history.map(function(h) {
+                return '<div class="history-item" data-keyword="' + escapeHtml(h.keyword) + '">' +
+                    '<span class="hi-keyword">' + escapeHtml(h.keyword) + '</span>' +
+                    '<span class="hi-count">' + h.result_count + '条</span>' +
+                    '<span class="hi-del" data-id="' + h.id + '" title="删除"><i class="fas fa-times-circle"></i></span>' +
+                '</div>';
+            }).join('');
+            // 绑定事件
+            historyList.querySelectorAll('.history-item').forEach(function(el) {
+                el.addEventListener('click', function(e) {
+                    if (e.target.closest('.hi-del')) return;
+                    input.value = this.dataset.keyword;
+                    doSearch();
+                });
+            });
+            historyList.querySelectorAll('.hi-del').forEach(function(btn) {
+                btn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    delHistory(parseInt(this.dataset.id));
+                });
+            });
+        } catch (e) { historySection.style.display = 'none'; }
+    }
+
+    function useHistory(keyword) {
+        input.value = keyword;
+        doSearch();
+    }
+
+    async function delHistory(id) {
+        try {
+            await fetch('/pin-tu/api/search-history/' + ROOT_B64, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids: [id] })
+            });
+            loadHistory();
+        } catch (e) {}
+    }
+
+    async function clearAllHistory() {
+        var ok = await showConfirm('清空搜索历史', '确定清空所有搜索历史？此操作不可撤销。', '清空');
+        if (!ok) return;
+        try {
+            await fetch('/pin-tu/api/search-history/' + ROOT_B64, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ clear: true })
+            });
+            historySection.style.display = 'none';
+        } catch (e) {}
+    }
+
+    // Enter 搜索
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') doSearch();
+    });
+
+    // 页面加载
+    {% if query %}
+        doSearch();
+    {% else %}
+        loadHistory();
+    {% endif %}
+</script>
+</body>
+</html>

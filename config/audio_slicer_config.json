@@ -1,0 +1,7 @@
+{
+  "threshold": -41,
+  "min_length": 5000,
+  "min_interval": 500,
+  "hop_size": 10,
+  "max_sil_kept": 1000
+}

@@ -1,0 +1,23 @@
+{
+  "sovits_project_path": "E:\\AI\\GPT-SoVITS-v4",
+  "sovits_config_yaml": "GPT_SoVITS\\configs\\tts_infer.yaml",
+  "last_prompt_text": "",
+  "last_prompt_lang": "zh",
+  "last_text_lang": "zh",
+  "last_text_split_method": "cut5",
+  "top_k": 5,
+  "top_p": 1,
+  "temperature": 1,
+  "batch_size": 16,
+  "speed_factor": 0.85,
+  "seed": -1,
+  "gpt_model_dir": "E:\\AI\\GPT-SoVITS-v4\\GPT_weights_v2",
+  "sovits_model_dir": "E:\\AI\\GPT-SoVITS-v4\\SoVITS_weights_v2",
+  "gpt_model_dir_mode": "absolute",
+  "sovits_model_dir_mode": "absolute",
+  "last_gpt_model": "bubu-e15.ckpt",
+  "last_sovits_model": "bubu_e8_s136.pth",
+  "refer_audio_folder": "E:\\AI\\GPT-SoVITS-v4\\参考音频",
+  "refer_audio_folder_mode": "absolute",
+  "config_yaml": "GPT_SoVITS/configs/tts_infer.yaml"
+}

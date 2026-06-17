@@ -1,0 +1,16 @@
+{
+  "api_url": "http://127.0.0.1:9880",
+  "gpt_model_dir": "E:\\AI\\GPT-SoVITS-v4\\GPT_weights_v2",
+  "sovits_model_dir": "E:\\AI\\GPT-SoVITS-v4\\SoVITS_weights_v2",
+  "last_gpt_model": "E:\\AI\\GPT-SoVITS-v4\\GPT_weights_v2\\bubu-e15.ckpt",
+  "last_sovits_model": "E:\\AI\\GPT-SoVITS-v4\\SoVITS_weights_v2\\bubu_e4_s68.pth",
+  "sovits_path": "E:\\AI\\GPT-SoVITS-v4",
+  "start_cmd": "start api_v2.bat",
+  "top_k": 5,
+  "top_p": 1,
+  "temperature": 1,
+  "batch_size": 16,
+  "speed": 1,
+  "text_split_method": "cut5",
+  "refer_audio_folder": "D:\\UserData\\Desktop\\声音素材\\参考音频"
+}

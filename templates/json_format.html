@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='font-awesome.css') }}">
+    <title>JSON 美化 / 压缩</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+        }
+        .left-panel {
+            width: 300px;
+            background: #fff;
+            border-right: 1px solid #e0e0e0;
+            display: flex;
+            flex-direction: column;
+        }
+        .panel-header {
+            padding: 28px 24px 18px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .panel-header h1 { font-size: 20px; font-weight: 700; margin-bottom: 2px; }
+        .panel-header .sub { font-size: 13px; color: #999; }
+        .panel-body { padding: 20px 24px; flex: 1; overflow-y: auto; }
+        .group { margin-bottom: 24px; }
+        .group-title { font-size: 11px; font-weight: 600; color: #aaa; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
+        .tabs { display: flex; background: #f5f5f5; border-radius: 8px; padding: 3px; gap: 3px; }
+        .tab-btn {
+            flex: 1; padding: 9px 0; text-align: center;
+            font-size: 13px; font-weight: 600; color: #999;
+            background: none; border: none; border-radius: 6px; cursor: pointer; transition: all 0.2s;
+        }
+        .tab-btn.on { background: #fff; color: #0078d4; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+        .tab-btn:hover:not(.on) { color: #666; }
+        select.styled {
+            width: 100%; padding: 9px 32px 9px 12px;
+            border: 1px solid #e0e0e0; border-radius: 8px;
+            font-size: 13px; color: #333; background: #fff;
+            outline: none; cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%23999' d='M5 7L1 3h8z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+            transition: border-color 0.2s;
+        }
+        select.styled:focus { border-color: #0078d4; }
+        .chk-label { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; color: #555; }
+        .chk-label input { display: none; }
+        .chk-icon {
+            width: 16px; height: 16px; border: 2px solid #d0d0d0; border-radius: 4px;
+            display: flex; align-items: center; justify-content: center; transition: all 0.15s;
+        }
+        .chk-icon i { font-size: 10px; color: #fff; opacity: 0; transition: opacity 0.15s; }
+        .chk-label input:checked ~ .chk-icon { background: #0078d4; border-color: #0078d4; }
+        .chk-label input:checked ~ .chk-icon i { opacity: 1; }
+        .panel-actions { padding: 16px 24px; border-top: 1px solid #f0f0f0; }
+        .panel-actions button {
+            width: 100%; padding: 10px; border: none; border-radius: 8px;
+            font-size: 13px; font-weight: 600; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            margin-bottom: 8px; transition: all 0.15s;
+        }
+        .panel-actions button:last-child { margin-bottom: 0; }
+        .btn-main { background: #0078d4; color: #fff; }
+        .btn-main:hover { background: #006cbd; }
+        .btn-main.copied { background: #2e7d32; }
+        .btn-ghost { background: #fff; color: #666; border: 1px solid #e0e0e0; }
+        .btn-ghost:hover { background: #f5f5f5; color: #333; }
+        .btn-ghost.danger:hover { color: #c62828; border-color: #f5b3b3; background: #fff5f5; }
+        .right { flex: 1; display: flex; }
+        .pane { flex: 1; display: flex; flex-direction: column; background: #fff; }
+        .pane:first-child { border-right: 1px solid #e0e0e0; }
+        .pane-head {
+            padding: 12px 20px; font-size: 11px; font-weight: 600; color: #aaa;
+            text-transform: uppercase; letter-spacing: 0.06em;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .pane-head i { font-size: 11px; color: #ccc; }
+        .pane-body { flex: 1; display: flex; flex-direction: column; }
+        .pane-body textarea {
+            flex: 1; width: 100%; border: none; outline: none; resize: none;
+            padding: 16px 20px;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            font-size: 13px; line-height: 1.7; color: #333; background: #fff;
+        }
+        .pane-body textarea::placeholder { color: #ccc; }
+        .pane-body textarea:focus { background: #fefefe; }
+        .pane-body textarea.has-error { background: #fff8f8; }
+        .err-bar {
+            padding: 8px 20px; font-size: 12px; color: #c62828;
+            background: #fff5f5; border-top: 1px solid #fde8e8;
+            display: none; align-items: center; gap: 6px;
+        }
+        .err-bar.on { display: flex; }
+
+        @media (max-width: 768px) {
+            body { flex-direction: column; height: auto; overflow: auto; }
+            .left-panel { width: 100% !important; height: auto; border-right: none; border-bottom: 1px solid #e8e8e8; overflow-y: visible; }
+            .right-panel { height: auto; min-height: 50vh; }
+            .input-section { padding: 14px 16px 20px; }
+        }
+    </style>
+</head>
+<body>
+<div class="left-panel">
+    <div class="panel-header">
+        <h1>JSON 工具</h1>
+        <span class="sub">美化 &amp; 压缩</span>
+    </div>
+    <div class="panel-body">
+        <div class="group">
+            <div class="group-title">模式</div>
+            <div class="tabs">
+                <button class="tab-btn on" data-tab="beautify" onclick="switchTab('beautify')">美化</button>
+                <button class="tab-btn" data-tab="minify" onclick="switchTab('minify')">压缩</button>
+            </div>
+        </div>
+        <div id="beautifyOpts">
+            <div class="group">
+                <div class="group-title">缩进空格</div>
+                <select id="indentSize" class="styled" onchange="process()">
+                    <option value="2">2</option>
+                    <option value="4" selected>4</option>
+                    <option value="6">6</option>
+                    <option value="8">8</option>
+                </select>
+            </div>
+            <div class="group">
+                <label class="chk-label">
+                    <input type="checkbox" id="sortKeys" onchange="process()">
+                    <span class="chk-icon"><i class="fas fa-check"></i></span>
+                    <span>键名排序</span>
+                </label>
+            </div>
+        </div>
+    </div>
+    <div class="panel-actions">
+        <button class="btn-main" id="copyBtn" onclick="copyOutput()"><i class="fas fa-copy"></i><span>复制结果</span></button>
+        <button class="btn-ghost" onclick="swapIO()"><i class="fas fa-refresh"></i> 交换输入输出</button>
+        <button class="btn-ghost danger" onclick="clearAll()"><i class="fas fa-trash"></i> 清空</button>
+    </div>
+</div>
+
+<div class="right">
+    <div class="pane">
+        <div class="pane-head"><i class="fas fa-file"></i> 输入</div>
+        <div class="pane-body">
+            <textarea id="input" placeholder="在此粘贴 JSON..." oninput="process()"></textarea>
+            <div class="err-bar" id="errBar"><i class="fas fa-times-circle"></i><span id="errMsg"></span></div>
+        </div>
+    </div>
+    <div class="pane">
+        <div class="pane-head"><i class="fas fa-check"></i> <span id="outLabel">美化结果</span></div>
+        <div class="pane-body">
+            <textarea id="output" readonly placeholder="结果将显示在这里..."></textarea>
+        </div>
+    </div>
+</div>
+
+<script>
+var cur = 'beautify';
+
+function switchTab(t) {
+    cur = t;
+    document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.toggle('on', b.dataset.tab === t); });
+    document.getElementById('beautifyOpts').style.display = t === 'beautify' ? 'block' : 'none';
+    document.getElementById('outLabel').textContent = t === 'beautify' ? '美化结果' : '压缩结果';
+    process();
+}
+
+function sortKeys(o) {
+    if (typeof o !== 'object' || o === null) return o;
+    if (Array.isArray(o)) return o.map(sortKeys);
+    return Object.keys(o).sort().reduce(function(a, k) { a[k] = sortKeys(o[k]); return a; }, {});
+}
+
+function process() {
+    var v = document.getElementById('input').value;
+    var errBar = document.getElementById('errBar');
+    var errMsg = document.getElementById('errMsg');
+    var out = document.getElementById('output');
+    var inp = document.getElementById('input');
+    if (!v.trim()) { out.value = ''; errBar.classList.remove('on'); inp.classList.remove('has-error'); return; }
+    try {
+        var obj = JSON.parse(v);
+        if (cur === 'beautify') {
+            var n = parseInt(document.getElementById('indentSize').value);
+            out.value = JSON.stringify(document.getElementById('sortKeys').checked ? sortKeys(obj) : obj, null, n);
+        } else {
+            out.value = JSON.stringify(obj);
+        }
+        errBar.classList.remove('on'); inp.classList.remove('has-error');
+    } catch (e) {
+        errMsg.textContent = e.message; errBar.classList.add('on'); inp.classList.add('has-error'); out.value = '';
+    }
+}
+
+function copyOutput() {
+    var t = document.getElementById('output').value;
+    if (!t) return;
+    var el = document.createElement('textarea');
+    el.value = t; el.style.cssText = 'position:fixed;left:-9999px';
+    document.body.appendChild(el); el.select(); document.execCommand('copy'); document.body.removeChild(el);
+    var b = document.getElementById('copyBtn');
+    b.classList.add('copied'); b.querySelector('span').textContent = '已复制';
+    setTimeout(function() { b.classList.remove('copied'); b.querySelector('span').textContent = '复制结果'; }, 1500);
+}
+
+function swapIO() {
+    var a = document.getElementById('input'), b = document.getElementById('output'), t = a.value;
+    a.value = b.value; b.value = t; process();
+}
+
+function clearAll() {
+    document.getElementById('input').value = '';
+    document.getElementById('output').value = '';
+    document.getElementById('errBar').classList.remove('on');
+    document.getElementById('input').classList.remove('has-error');
+}
+</script>
+</body>
+</html>

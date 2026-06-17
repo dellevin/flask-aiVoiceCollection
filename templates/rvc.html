@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='font-awesome.css') }}">
+    <title>RVC 变声</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #f5f5f5; color: #333; height: 100vh; overflow: hidden; display: flex;
+        }
+        .left-panel {
+            width: 50%; flex-shrink: 0; display: flex; flex-direction: column;
+            border-right: 1px solid #e8e8e8; background: #fff; height: 100vh; overflow-y: auto;
+        }
+        .left-panel::-webkit-scrollbar { width: 4px; }
+        .left-panel::-webkit-scrollbar-thumb { background: #ddd; border-radius: 2px; }
+        .input-section { padding: 20px 24px 28px; }
+
+        .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px; }
+        .header h1 { font-size: 18px; font-weight: 700; color: #1a1a1a; letter-spacing: -0.01em; }
+        .settings-icon {
+            width: 32px; height: 32px; border: none; background: transparent;
+            color: #999; font-size: 15px; cursor: pointer; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center; transition: all 0.15s;
+        }
+        .settings-icon:hover { background: #f5f5f5; color: #333; }
+        .subtitle { color: #aaa; font-size: 12px; margin-bottom: 16px; }
+        .status-dot {
+            display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+            margin-right: 6px; vertical-align: middle;
+        }
+        .status-dot.ready { background: #4caf50; }
+        .status-dot.loading { background: #ff9800; animation: pulse 1s infinite; }
+        .status-dot.error { background: #f44336; }
+        .status-dot.offline { background: #ccc; }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+        .section-card {
+            background: #fafafa; border: 1px solid #f0f0f0; border-radius: 10px;
+            padding: 14px 16px; margin-bottom: 12px; flex: 1; min-width: 0;
+        }
+        .card-pair { display: flex; gap: 8px; margin-bottom: 8px; }
+        .card-pair .section-card { margin-bottom: 0; }
+        .section-title {
+            font-size: 11px; font-weight: 600; color: #999; text-transform: uppercase;
+            letter-spacing: 0.06em; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;
+        }
+        .section-title i { font-size: 11px; }
+
+        .input-group { margin-bottom: 10px; position: relative; }
+        .input-group:last-child { margin-bottom: 0; }
+        .input-group label { display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #555; }
+        .input-group select {
+            width: 100%; padding: 7px 10px;
+            border: 1px solid #e0e0e0; border-radius: 6px;
+            background: #fff; color: #333; font-size: 13px;
+            outline: none; transition: all 0.15s ease;
+        }
+        .input-group select:focus { border-color: #0078d4; box-shadow: 0 0 0 2px rgba(0,120,212,0.06); }
+        .input-group.no-icon select { padding-left: 10px; }
+        .path-row { display: flex; gap: 6px; align-items: flex-end; }
+        .path-row select { width: 90px; flex-shrink: 0; padding: 7px 6px; font-size: 12px; }
+        .path-row input { flex: 1; }
+
+        .slider-group { margin-bottom: 10px; }
+        .slider-group:last-child { margin-bottom: 0; }
+        .slider-label {
+            display: flex; justify-content: space-between; align-items: center;
+            font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #555;
+        }
+        .slider-value { font-weight: 600; color: #0078d4; font-size: 12px; }
+        input[type="range"] {
+            width: 100%; height: 4px; -webkit-appearance: none; appearance: none;
+            background: #e0e0e0; border-radius: 2px; outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 14px; height: 14px;
+            background: #0078d4; border-radius: 50%; cursor: pointer;
+        }
+        .param-desc { font-size: 11px; color: #aaa; margin-top: 2px; line-height: 1.4; }
+
+        .btn {
+            padding: 7px 14px; border: none; border-radius: 6px; font-size: 12px;
+            font-weight: 600; cursor: pointer; transition: all 0.12s ease;
+            display: inline-flex; align-items: center; gap: 5px;
+        }
+        .btn-primary { background: #0078d4; color: #fff; }
+        .btn-primary:hover:not(:disabled) { background: #006cbd; }
+        .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+        .btn-outline { background: #fff; color: #666; border: 1px solid #e0e0e0; }
+        .btn-outline:hover { background: #f5f5f5; color: #333; }
+        .btn-sm { padding: 5px 10px; font-size: 11px; }
+        .btn-block { width: 100%; justify-content: center; }
+
+        .convert-btn {
+            width: 100%; padding: 10px 18px;
+            background: linear-gradient(135deg, #0078d4, #005fa3);
+            color: #fff; border: none; border-radius: 8px;
+            font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.15s ease;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            margin-top: 14px; box-shadow: 0 2px 8px rgba(0,120,212,0.2);
+        }
+        .convert-btn:hover:not(:disabled) {
+            background: linear-gradient(135deg, #006cbd, #004e8a);
+            box-shadow: 0 4px 12px rgba(0,120,212,0.3); transform: translateY(-1px);
+        }
+        .convert-btn:active:not(:disabled) { transform: translateY(0); }
+        .convert-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loading-spinner { animation: spin 1s linear infinite; }
+
+        .upload-area {
+            border: 2px dashed #e0e0e0; border-radius: 8px; padding: 40px;
+            text-align: center; cursor: pointer; transition: all 0.15s;
+            background: #fafafa;
+        }
+        .upload-area:hover { border-color: #0078d4; background: #f0f7ff; }
+        .upload-area.has-file { border-color: #4caf50; background: #f0fff0; }
+        .upload-area input[type="file"] { display: none; }
+        .upload-area .upload-label { font-size: 13px; color: #888; }
+        .upload-area .upload-filename { font-size: 13px; color: #333; font-weight: 600; margin-top: 4px; }
+
+        /* Right panel */
+        .right-panel {
+            flex: 1; display: flex; flex-direction: column; background: #fafafa;
+            height: 100vh; overflow: hidden;
+        }
+        .right-content {
+            flex: 1; display: flex; align-items: center; justify-content: center;
+            padding: 20px; min-height: 0; overflow-y: auto;
+        }
+        .placeholder { text-align: center; color: #ccc; }
+        .placeholder i { font-size: 48px; margin-bottom: 12px; }
+        .placeholder p { font-size: 13px; }
+
+        .audio-wrap { width: 100%; max-width: 480px; text-align: center; }
+        .audio-wrap audio { width: 100%; margin-bottom: 12px; }
+        .audio-meta { font-size: 12px; color: #888; margin-bottom: 12px; }
+        .meta-label { font-weight: 600; }
+        .meta-value { color: #0078d4; }
+        .audio-actions { display: flex; gap: 8px; justify-content: center; }
+
+        .log-area {
+            flex: 2; display: flex; flex-direction: column;
+            border-top: 1px solid #e8e8e8; min-height: 0;
+        }
+        .log-header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 8px 16px; background: #2d2d2d; border-bottom: 1px solid #3d3d3d;
+        }
+        .log-header span { font-size: 12px; color: #aaa; font-weight: 600; }
+        .log-content {
+            flex: 1; overflow-y: auto; background: #1e1e1e; padding: 12px 16px;
+            font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+            font-size: 12px; line-height: 1.6; color: #d4d4d4;
+        }
+        .log-content::-webkit-scrollbar { width: 6px; }
+        .log-content::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
+        .log-line { white-space: pre-wrap; word-break: break-all; }
+        .log-line.error { color: #f48771; }
+        .log-line.warn { color: #cca700; }
+
+        /* Settings modal */
+        .modal-overlay {
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+            z-index: 100; align-items: center; justify-content: center;
+        }
+        .modal-overlay.show { display: flex; }
+        .modal {
+            background: #fff; border-radius: 12px; width: 480px; max-height: 80vh;
+            overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+        }
+        .modal-header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 16px 20px; border-bottom: 1px solid #f0f0f0;
+        }
+        .modal-header h3 { font-size: 15px; font-weight: 700; }
+        .modal-close {
+            width: 28px; height: 28px; border: none; background: transparent;
+            color: #999; font-size: 16px; cursor: pointer; border-radius: 6px;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .modal-close:hover { background: #f5f5f5; }
+        .modal-body { padding: 16px 20px; }
+        .modal-body .input-group { margin-bottom: 12px; }
+        .modal-body .input-group label { font-size: 13px; }
+        .modal-body .input-group input {
+            width: 100%; padding: 7px 10px; border: 1px solid #e0e0e0; border-radius: 6px;
+            font-size: 13px; outline: none;
+        }
+        .modal-body .input-group input:focus { border-color: #0078d4; }
+        .engine-status-box {
+            padding: 10px 12px; border-radius: 8px; margin-bottom: 12px;
+            font-size: 12px; display: flex; align-items: center; gap: 8px;
+        }
+        .engine-status-box.ready { background: #e8f5e9; color: #2e7d32; }
+        .engine-status-box.loading { background: #fff3e0; color: #e65100; }
+        .engine-status-box.error { background: #fce4ec; color: #c62828; }
+        .engine-status-box.offline { background: #f5f5f5; color: #999; }
+        .modal-footer {
+            padding: 12px 20px; border-top: 1px solid #f0f0f0;
+            display: flex; justify-content: flex-end; gap: 8px;
+        }
+
+        /* Toast */
+        .toast-container { position: fixed; top: 20px; right: 20px; z-index: 200; display: flex; flex-direction: column; gap: 8px; }
+        .toast {
+            padding: 10px 16px; border-radius: 8px; font-size: 13px; font-weight: 500;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15); animation: slideIn 0.3s ease;
+            max-width: 360px;
+        }
+        .toast.success { background: #e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9; }
+        .toast.error { background: #fce4ec; color: #c62828; border: 1px solid #f8bbd0; }
+        .toast.info { background: #e3f2fd; color: #1565c0; border: 1px solid #bbdefb; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @media (max-width: 768px) {
+            body { flex-direction: column; height: auto; overflow: auto; }
+            .left-panel { width: 100% !important; max-width: 100% !important; height: auto; border-right: none; border-bottom: 1px solid #e8e8e8; overflow-y: visible; }
+            .right-panel { height: auto; min-height: 50vh; }
+            .card-pair { flex-direction: column; }
+            .modal { width: 92vw !important; max-height: 90vh; overflow-y: auto; left: 4vw !important; transform: none !important; }
+            .input-section { padding: 14px 16px 20px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="left-panel">
+        <div class="input-section">
+            <!-- Header -->
+            <div class="header">
+                <h1><span class="status-dot offline" id="statusDot"></span>RVC 变声</h1>
+                <button class="settings-icon" onclick="openSettings()"><i class="fas fa-wrench"></i></button>
+            </div>
+            <div class="subtitle" id="statusText">引擎未初始化</div>
+
+            <!-- Model selection -->
+            <div class="card-pair">
+                <div class="section-card">
+                    <div class="section-title"><i class="fas fa-robot"></i> 模型选择</div>
+                    <div class="input-group no-icon">
+                        <label>语音模型 (.pth)</label>
+                        <select id="modelSelect"><option value="">请选择模型</option></select>
+                    </div>
+                    <div class="input-group no-icon" style="margin-top:8px;">
+                        <label>Index 文件</label>
+                        <select id="indexSelect"><option value="">无 (不使用检索)</option></select>
+                    </div>
+                    <div style="margin-top:10px; display:flex; gap:8px;">
+                        <button class="btn btn-primary btn-sm" id="loadModelBtn" style="flex:1;" onclick="switchModel()" disabled><i class="fas fa-refresh"></i> 加载模型</button>
+                        <button class="btn btn-outline btn-sm" style="flex:1;" onclick="saveModelConfig()"><i class="fas fa-check"></i> 保存选择</button>
+                    </div>
+                </div>
+
+                <!-- Upload audio -->
+                <div class="section-card">
+                    <div class="section-title"><i class="fas fa-file"></i> 输入音频</div>
+                    <div class="upload-area" id="uploadArea" onclick="document.getElementById('audioFile').click()"
+                         ondragover="event.preventDefault(); this.style.borderColor='#0078d4';"
+                         ondragleave="this.style.borderColor='#e0e0e0';"
+                         ondrop="event.preventDefault(); this.style.borderColor='#e0e0e0'; handleDrop(event);">
+                        <input type="file" id="audioFile" accept=".wav,.mp3,.flac,.ogg,.m4a,.aac" onchange="handleFileSelect(this)">
+                        <div class="upload-label" id="uploadLabel"><i class="fas fa-file"></i> 点击选择或拖拽音频文件</div>
+                        <div class="upload-filename" id="uploadFilename" style="display:none;"></div>
+                    </div>
+                    <audio id="uploadPreview" controls style="display:none; width:100%; margin-top:8px; height:32px;"></audio>
+                </div>
+            </div>
+
+            <!-- Parameters -->
+            <div class="section-card">
+                <div class="section-title" style="justify-content:space-between;">
+                    <span><i class="fas fa-wrench"></i> 变声参数</span>
+                    <button class="btn btn-outline btn-sm" onclick="saveInferConfig()" style="text-transform:none; letter-spacing:0; font-size:11px;"><i class="fas fa-check"></i> 保存参数</button>
+                </div>
+                <div class="input-group no-icon">
+                    <label>F0 提取方法</label>
+                     <div class="param-desc" style="margin-bottom: 10px">选择音高提取算法,输入歌声可用pm提速,harvest低音好但巨慢无比,crepe效果好但吃GPU,rmvpe效果最好且微吃GPU</div>
+                    <select id="f0Method">
+                        {% for m in f0_methods %}
+                        <option value="{{ m }}">{{ f0_method_names[m] }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="input-group no-icon">
+                    <label>后处理重采样至最终采样率</label>
+                    <select id="resampleSr">
+                        <option value="0">不重采样</option>
+                        <option value="16000">16000 Hz</option>
+                        <option value="22050">22050 Hz</option>
+                        <option value="32000">32000 Hz</option>
+                        <option value="40000">40000 Hz</option>
+                        <option value="44100">44100 Hz</option>
+                        <option value="48000">48000 Hz</option>
+                    </select>
+                </div>
+                <div class="slider-group">
+                    <div class="slider-label"><span>音调升降</span><span class="slider-value" id="f0UpKeyValue">0</span></div>
+                    <div class="param-desc">整数，半音数量，升八度 +12，降八度 -12</div>
+                    <input type="range" id="f0UpKey" min="-24" max="24" value="0" step="1"
+                           oninput="document.getElementById('f0UpKeyValue').textContent=this.value">
+
+                </div>
+                <div class="slider-group">
+                    <div class="slider-label"><span>辅音保护</span><span class="slider-value" id="protectValue">0.33</span></div>
+                    <div class="param-desc">保护清辅音和呼吸声，防止电音撕裂等 artifact。拉满 0.5 不开启，调低加大保护力度但可能降低索引效果</div>
+                    <input type="range" id="protect" min="0" max="0.5" value="0.33" step="0.01"
+                           oninput="document.getElementById('protectValue').textContent=parseFloat(this.value).toFixed(2)">
+
+                </div>
+                <div class="slider-group">
+                    <div class="slider-label"><span>滤波半径</span><span class="slider-value" id="filterRadiusValue">3</span></div>
+                    <div class="param-desc">&ge;3 则对 harvest 音高识别结果使用中值滤波，数值为滤波半径，可以削弱哑音</div>
+                    <input type="range" id="filterRadius" min="0" max="7" value="3" step="1"
+                           oninput="document.getElementById('filterRadiusValue').textContent=this.value">
+
+                </div>
+
+                <div class="slider-group">
+                    <div class="slider-label"><span>音量包络混合</span><span class="slider-value" id="rmsMixRateValue">0.25</span></div>
+                    <div class="param-desc">输入源音量包络替换输出音量包络的融合比例，越靠近 1 越使用输出包络</div>
+                    <input type="range" id="rmsMixRate" min="0" max="1" value="0.25" step="0.01"
+                           oninput="document.getElementById('rmsMixRateValue').textContent=parseFloat(this.value).toFixed(2)">
+                </div>
+                <div class="slider-group">
+                    <div class="slider-label"><span>检索特征比率</span><span class="slider-value" id="indexRateValue">0.75</span></div>
+                    <input type="range" id="indexRate" min="0" max="1" value="0.75" step="0.01"
+                           oninput="document.getElementById('indexRateValue').textContent=parseFloat(this.value).toFixed(2)">
+                </div>
+            </div>
+
+            <!-- Convert button -->
+            <button class="convert-btn" id="convertBtn" onclick="convert()" disabled>
+                <i class="fas fa-play"></i> 开始变声
+            </button>
+        </div>
+    </div>
+
+    <!-- Right panel -->
+    <div class="right-panel">
+        <div class="right-content">
+            <div class="placeholder" id="placeholder">
+                <i class="fas fa-microphone"></i>
+                <p>上传音频，选择模型，开始变声</p>
+            </div>
+            <div id="convertLoading" style="display:none; text-align:center;">
+                <i class="fas fa-refresh loading-spinner" style="font-size:32px; color:#0078d4;"></i>
+                <p style="margin-top:10px; color:#888; font-size:13px;">变声处理中...</p>
+            </div>
+            <div class="audio-wrap" id="audioWrap" style="display:none;">
+                <audio id="audioPlayer" controls></audio>
+                <div class="audio-meta" id="audioMeta"></div>
+                <div class="audio-actions">
+                    <a id="downloadLink" class="btn btn-outline btn-sm" href="#" download="rvc_output.wav">
+                        <i class="fas fa-file"></i> 下载
+                    </a>
+                    <button class="btn btn-outline btn-sm" onclick="replay()"><i class="fas fa-play"></i> 重播</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="log-area">
+            <div class="log-header">
+                <span><i class="fas fa-code"></i> 控制台日志</span>
+                <button class="btn btn-outline btn-sm" onclick="clearLogs()" style="padding:3px 8px; font-size:11px;">清除</button>
+            </div>
+            <div class="log-content" id="logContent"></div>
+        </div>
+    </div>
+
+    <!-- Settings modal -->
+    <div class="modal-overlay" id="settingsModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3><i class="fas fa-wrench"></i> RVC 设置</h3>
+                <button class="modal-close" onclick="closeSettings()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="engine-status-box offline" id="engineStatusBox">
+                    <span class="status-dot offline" id="engineStatusDot"></span>
+                    <span id="engineStatusText">未初始化</span>
+                </div>
+
+                <div class="input-group">
+                    <label>RVC 项目路径</label>
+                    <input type="text" id="rvcProjectPath" placeholder="E:\AI\RVC\RVC1006Nvidia">
+                </div>
+                <div class="input-group">
+                    <label>语音模型目录</label>
+                    <div class="path-row">
+                        <select id="modelDirMode" onchange="updatePathPlaceholder('model')">
+                            <option value="relative">相对路径</option>
+                            <option value="absolute">绝对路径</option>
+                        </select>
+                        <input type="text" id="modelDir" placeholder="assets/weights">
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>Index 目录</label>
+                    <div class="path-row">
+                        <select id="indexDirMode" onchange="updatePathPlaceholder('index')">
+                            <option value="relative">相对路径</option>
+                            <option value="absolute">绝对路径</option>
+                        </select>
+                        <input type="text" id="indexDir" placeholder="logs">
+                    </div>
+                </div>
+
+                <div style="display:flex; gap:8px; margin-top:12px;">
+                    <button class="btn btn-primary btn-sm" style="flex:1;" onclick="initEngine()"><i class="fas fa-play"></i> 启动引擎</button>
+                    <button class="btn btn-outline btn-sm" style="flex:1;" onclick="reloadEngine()"><i class="fas fa-refresh"></i> 重启</button>
+                    <button class="btn btn-outline btn-sm" style="flex:1;" onclick="stopEngine()"><i class="fas fa-times-circle"></i> 停止</button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline btn-sm" onclick="closeSettings()">取消</button>
+                <button class="btn btn-primary btn-sm" onclick="saveSettings()">保存设置</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script>
+        // === State ===
+        var _uploadedPath = '';
+        var _uploadedFilename = '';
+        var _logPollTimer = null;
+
+        // === Elements ===
+        var statusDot = document.getElementById('statusDot');
+        var statusText = document.getElementById('statusText');
+        var convertBtn = document.getElementById('convertBtn');
+        var placeholder = document.getElementById('placeholder');
+        var convertLoading = document.getElementById('convertLoading');
+        var audioWrap = document.getElementById('audioWrap');
+        var audioPlayer = document.getElementById('audioPlayer');
+        var downloadLink = document.getElementById('downloadLink');
+        var audioMeta = document.getElementById('audioMeta');
+        var logContent = document.getElementById('logContent');
+
+        // === Toast ===
+        function showMessage(text, type, duration) {
+            type = type || 'info'; duration = duration || 3000;
+            var t = document.createElement('div');
+            t.className = 'toast ' + type;
+            t.textContent = text;
+            document.getElementById('toastContainer').appendChild(t);
+            setTimeout(function() { t.style.opacity = '0'; t.style.transition = 'opacity 0.3s'; setTimeout(function(){ t.remove(); }, 300); }, duration);
+        }
+
+        // === Settings ===
+        function openSettings() { document.getElementById('settingsModal').classList.add('show'); checkEngineStatus(); }
+        function closeSettings() { document.getElementById('settingsModal').classList.remove('show'); }
+
+        function saveSettings() {
+            var cfg = {
+                rvc_project_path: document.getElementById('rvcProjectPath').value.trim(),
+                model_dir: document.getElementById('modelDir').value.trim(),
+                model_dir_mode: document.getElementById('modelDirMode').value,
+                index_dir: document.getElementById('indexDir').value.trim(),
+                index_dir_mode: document.getElementById('indexDirMode').value
+            };
+            fetch('/rvc/config', {
+                method: 'POST', headers: {'Content-Type':'application/json'},
+                body: JSON.stringify(cfg)
+            }).then(function(r){ return r.json(); }).then(function(data){
+                if (data.success) { showMessage('设置已保存', 'success'); loadMainConfig(); }
+                else showMessage(data.error || '保存失败', 'error');
+            });
+        }
+
+        function saveInferConfig() {
+            var cfg = {
+                f0_up_key: parseInt(document.getElementById('f0UpKey').value) || 0,
+                f0_method: document.getElementById('f0Method').value,
+                index_rate: parseFloat(document.getElementById('indexRate').value),
+                filter_radius: parseInt(document.getElementById('filterRadius').value),
+                resample_sr: parseInt(document.getElementById('resampleSr').value) || 0,
+                rms_mix_rate: parseFloat(document.getElementById('rmsMixRate').value),
+                protect: parseFloat(document.getElementById('protect').value)
+            };
+            fetch('/rvc/config', {
+                method: 'POST', headers: {'Content-Type':'application/json'},
+                body: JSON.stringify(cfg)
+            }).then(function(r){ return r.json(); }).then(function(data){
+                if (data.success) showMessage('参数已保存', 'success');
+                else showMessage(data.error || '保存失败', 'error');
+            });
+        }
+
+        function saveModelConfig() {
+            var cfg = {
+                last_model: document.getElementById('modelSelect').value || '',
+                last_index: document.getElementById('indexSelect').value || ''
+            };
+            fetch('/rvc/config', {
+                method: 'POST', headers: {'Content-Type':'application/json'},
+                body: JSON.stringify(cfg)
+            }).then(function(r){ return r.json(); }).then(function(data){
+                if (data.success) showMessage('模型选择已保存', 'success');
+                else showMessage(data.error || '保存失败', 'error');
+            });
+        }
+
+        // === Engine ===
+        function initEngine() {
+            showMessage('正在启动引擎...', 'info');
+            fetch('/rvc/init-engine', {method:'POST'}).then(function(r){ return r.json(); }).then(function(data){
+                if (data.success) showMessage('引擎启动成功 (' + (data.device||'') + ')', 'success');
+                else showMessage(data.error || '启动失败', 'error');
+                startLogPolling();
+            });
+        }
+
+        function reloadEngine() {
+            showMessage('正在重启引擎...', 'info');
+            fetch('/rvc/reload-engine', {method:'POST'}).then(function(r){ return r.json(); }).then(function(data){
+                if (data.success) showMessage('引擎重启成功', 'success');
+                else showMessage(data.error || '重启失败', 'error');
+                startLogPolling();
+            });
+        }
+
+        function stopEngine() {
+            fetch('/rvc/stop-engine', {method:'POST'}).then(function(r){ return r.json(); }).then(function(data){
+                showMessage('引擎已停止', 'info');
+                stopLogPolling();
+                updateEngineUI({initialized:false, loading:false, error:null});
+            });
+        }
+
+        function checkEngineStatus() {
+            fetch('/rvc/engine-status').then(function(r){ return r.json(); }).then(function(data){
+                updateEngineUI(data);
+                updateLogs(data.logs || []);
+            });
+        }
+
+        function updateEngineUI(data) {
+            var dot = statusDot;
+            var txt = statusText;
+            var eDot = document.getElementById('engineStatusDot');
+            var eTxt = document.getElementById('engineStatusText');
+            var eBox = document.getElementById('engineStatusBox');
+
+            dot.className = 'status-dot';
+            eDot.className = 'status-dot';
+            eBox.className = 'engine-status-box';
+
+            if (data.loading) {
+                dot.classList.add('loading'); eDot.classList.add('loading');
+                eBox.classList.add('loading');
+                txt.textContent = '引擎加载中...';
+                eTxt.textContent = '加载中...';
+                document.getElementById('loadModelBtn').disabled = true;
+                convertBtn.disabled = true;
+            } else if (data.initialized) {
+                dot.classList.add('ready'); eDot.classList.add('ready');
+                eBox.classList.add('ready');
+                document.getElementById('loadModelBtn').disabled = false;
+                if (data.model_loaded) {
+                    txt.textContent = '引擎就绪 (' + (data.device || '') + ')';
+                    eTxt.textContent = '就绪 (' + (data.device || '') + ')';
+                    convertBtn.disabled = !_uploadedPath;
+                } else {
+                    txt.textContent = '引擎就绪，请加载模型';
+                    eTxt.textContent = '就绪，请加载模型';
+                    convertBtn.disabled = true;
+                }
+            } else if (data.error) {
+                dot.classList.add('error'); eDot.classList.add('error');
+                eBox.classList.add('error');
+                txt.textContent = '引擎错误';
+                eTxt.textContent = data.error;
+                document.getElementById('loadModelBtn').disabled = true;
+                convertBtn.disabled = true;
+            } else {
+                dot.classList.add('offline'); eDot.classList.add('offline');
+                eBox.classList.add('offline');
+                txt.textContent = '引擎未初始化';
+                eTxt.textContent = '未初始化';
+                document.getElementById('loadModelBtn').disabled = true;
+                convertBtn.disabled = true;
+            }
+        }
+
+        function updateLogs(logs) {
+            if (!logs.length) {
+                if (!document.querySelector('#statusDot.loading')) logContent.innerHTML = '';
+                return;
+            }
+            var html = '';
+            logs.forEach(function(line) {
+                var cls = 'log-line';
+                if (/error|exception|traceback/i.test(line)) cls += ' error';
+                else if (/warn/i.test(line)) cls += ' warn';
+                html += '<div class="' + cls + '">' + escapeHtml(line) + '</div>';
+            });
+            logContent.innerHTML = html;
+            logContent.scrollTop = logContent.scrollHeight;
+        }
+
+        function escapeHtml(s) {
+            return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        }
+
+        function startLogPolling() {
+            stopLogPolling();
+            _logPollTimer = setInterval(checkEngineStatus, 600);
+        }
+        function stopLogPolling() {
+            if (_logPollTimer) { clearInterval(_logPollTimer); _logPollTimer = null; }
+        }
+
+        function clearLogs() {
+            logContent.innerHTML = '';
+            fetch('/rvc/clear-logs', {method:'POST'});
+        }
+
+        function updatePathPlaceholder(type) {
+            var mode = document.getElementById(type + 'DirMode').value;
+            var input = document.getElementById(type + 'Dir');
+            if (type === 'model') {
+                input.placeholder = mode === 'absolute' ? 'E:\\models\\weights' : 'assets/weights';
+            } else {
+                input.placeholder = mode === 'absolute' ? 'E:\\models\\logs' : 'logs';
+            }
+        }
+
+        // === Model ===
+        function switchModel() {
+            var model = document.getElementById('modelSelect').value;
+            if (!model) { showMessage('请选择模型', 'error'); return; }
+            showMessage('正在加载模型...', 'info');
+            fetch('/rvc/switch-model', {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({model_name: model})
+            }).then(function(r){ return r.json(); }).then(function(data){
+                if (data.success) showMessage(data.message || '模型已加载', 'success');
+                else showMessage(data.error || '加载失败', 'error');
+            });
+        }
+
+        // === File upload ===
+        function handleFileSelect(input) {
+            if (!input.files.length) return;
+            uploadFile(input.files[0]);
+        }
+
+        function handleDrop(event) {
+            var files = event.dataTransfer.files;
+            if (files.length) uploadFile(files[0]);
+        }
+
+        function uploadFile(file) {
+            var formData = new FormData();
+            formData.append('audio', file);
+            showMessage('正在上传...', 'info');
+            fetch('/rvc/upload-audio', {method:'POST', body: formData}).then(function(r){ return r.json(); }).then(function(data){
+                if (data.success) {
+                    _uploadedPath = data.path;
+                    _uploadedFilename = data.filename;
+                    document.getElementById('uploadLabel').style.display = 'none';
+                    var fn = document.getElementById('uploadFilename');
+                    fn.textContent = data.filename;
+                    fn.style.display = 'block';
+                    document.getElementById('uploadArea').classList.add('has-file');
+                    var preview = document.getElementById('uploadPreview');
+                    preview.src = URL.createObjectURL(file);
+                    preview.style.display = '';
+                    convertBtn.disabled = false;
+                    showMessage('上传成功', 'success');
+                } else {
+                    showMessage(data.error || '上传失败', 'error');
+                }
+            });
+        }
+
+        // === Convert ===
+        function convert() {
+            if (!_uploadedPath) { showMessage('请先上传音频', 'error'); return; }
+            convertBtn.disabled = true;
+            placeholder.style.display = 'none';
+            audioWrap.style.display = 'none';
+            convertLoading.style.display = '';
+
+            var payload = {
+                input_path: _uploadedPath,
+                file_index: document.getElementById('indexSelect').value || '',
+                f0_up_key: parseInt(document.getElementById('f0UpKey').value) || 0,
+                f0_method: document.getElementById('f0Method').value,
+                index_rate: parseFloat(document.getElementById('indexRate').value),
+                filter_radius: parseInt(document.getElementById('filterRadius').value),
+                resample_sr: parseInt(document.getElementById('resampleSr').value) || 0,
+                rms_mix_rate: parseFloat(document.getElementById('rmsMixRate').value),
+                protect: parseFloat(document.getElementById('protect').value)
+            };
+
+            var startTime = Date.now();
+            fetch('/rvc/convert', {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify(payload)
+            }).then(function(r){ return r.json(); }).then(function(data){
+                if (!data.success) {
+                    showMessage(data.error || '变声失败', 'error');
+                    convertLoading.style.display = 'none';
+                    placeholder.style.display = '';
+                    convertBtn.disabled = false;
+                    return;
+                }
+                pollTask(data.task_id, startTime);
+            }).catch(function(e) {
+                showMessage('请求失败: ' + e.message, 'error');
+                convertLoading.style.display = 'none';
+                placeholder.style.display = '';
+                convertBtn.disabled = false;
+            });
+        }
+
+        function pollTask(taskId, startTime) {
+            var poll = setInterval(function() {
+                fetch('/rvc/status/' + taskId).then(function(r){ return r.json(); }).then(function(data){
+                    if (!data.success) return;
+                    var p = data.progress;
+                    if (p.status === 'done') {
+                        clearInterval(poll);
+                        var elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+                        convertLoading.style.display = 'none';
+                        audioWrap.style.display = '';
+                        audioPlayer.src = data.audio_url;
+                        var safeName = _uploadedFilename.replace(/\.[^.]+$/, '').replace(/[\\/:*?"<>|]/g, '_');
+                        var model = document.getElementById('modelSelect').value.replace(/\.[^.]+$/, '');
+                        var now = new Date();
+                        var ts = now.getFullYear() + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0')
+                            + String(now.getHours()).padStart(2,'0') + String(now.getMinutes()).padStart(2,'0')
+                            + String(now.getSeconds()).padStart(2,'0') + String(now.getMilliseconds()).padStart(3,'0');
+                        var dlName = model + '_' + safeName + '_' + ts + '.wav';
+                        fetch(data.audio_url).then(function(r){ return r.blob(); }).then(function(blob){
+                            if (downloadLink._blobUrl) URL.revokeObjectURL(downloadLink._blobUrl);
+                            downloadLink._blobUrl = URL.createObjectURL(blob);
+                            downloadLink.href = downloadLink._blobUrl;
+                            downloadLink.download = dlName;
+                        });
+                        audioMeta.innerHTML = '<span class="meta-label">耗时</span> <span class="meta-value">' + elapsed + 's</span>';
+                        convertBtn.disabled = false;
+                        showMessage('变声完成，耗时 ' + elapsed + ' 秒', 'success');
+                    } else if (p.status === 'error') {
+                        clearInterval(poll);
+                        showMessage(p.error || '变声失败', 'error');
+                        convertLoading.style.display = 'none';
+                        placeholder.style.display = '';
+                        convertBtn.disabled = false;
+                    }
+                });
+            }, 500);
+        }
+
+        function replay() { audioPlayer.currentTime = 0; audioPlayer.play(); }
+
+        // === Load config ===
+        function loadMainConfig() {
+            fetch('/rvc/config').then(function(r){ return r.json(); }).then(function(cfg){
+                // Populate models
+                var mSel = document.getElementById('modelSelect');
+                mSel.innerHTML = '<option value="">请选择模型</option>';
+                (cfg.models || []).forEach(function(m) {
+                    var opt = document.createElement('option');
+                    opt.value = m; opt.textContent = m;
+                    if (m === cfg.last_model) opt.selected = true;
+                    mSel.appendChild(opt);
+                });
+                // Populate indexes
+                var iSel = document.getElementById('indexSelect');
+                iSel.innerHTML = '<option value="">无 (不使用检索)</option>';
+                (cfg.index_files || []).forEach(function(f) {
+                    var opt = document.createElement('option');
+                    opt.value = f; opt.textContent = f.replace(/\\/g, '/').split('/').pop();
+                    if (f === cfg.last_index) opt.selected = true;
+                    iSel.appendChild(opt);
+                });
+                // Populate params
+                document.getElementById('f0UpKey').value = cfg.f0_up_key || 0;
+                document.getElementById('f0UpKeyValue').textContent = cfg.f0_up_key || 0;
+                document.getElementById('f0Method').value = cfg.f0_method || 'rmvpe';
+                document.getElementById('indexRate').value = cfg.index_rate != null ? cfg.index_rate : 0.75;
+                document.getElementById('indexRateValue').textContent = (cfg.index_rate != null ? cfg.index_rate : 0.75).toFixed(2);
+                document.getElementById('filterRadius').value = cfg.filter_radius != null ? cfg.filter_radius : 3;
+                document.getElementById('filterRadiusValue').textContent = cfg.filter_radius != null ? cfg.filter_radius : 3;
+                document.getElementById('resampleSr').value = cfg.resample_sr || 0;
+                document.getElementById('rmsMixRate').value = cfg.rms_mix_rate != null ? cfg.rms_mix_rate : 0.25;
+                document.getElementById('rmsMixRateValue').textContent = (cfg.rms_mix_rate != null ? cfg.rms_mix_rate : 0.25).toFixed(2);
+                document.getElementById('protect').value = cfg.protect != null ? cfg.protect : 0.33;
+                document.getElementById('protectValue').textContent = (cfg.protect != null ? cfg.protect : 0.33).toFixed(2);
+
+                // Populate settings modal
+                document.getElementById('rvcProjectPath').value = cfg.rvc_project_path || '';
+                document.getElementById('modelDir').value = cfg.model_dir || 'assets/weights';
+                document.getElementById('modelDirMode').value = cfg.model_dir_mode || 'relative';
+                document.getElementById('indexDir').value = cfg.index_dir || 'logs';
+                document.getElementById('indexDirMode').value = cfg.index_dir_mode || 'relative';
+
+                // Engine status
+                if (cfg.engine_status) {
+                    updateEngineUI(cfg.engine_status);
+                    if (cfg.engine_status.initialized || cfg.engine_status.loading) startLogPolling();
+                }
+            });
+        }
+
+        // === Keyboard ===
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closeSettings();
+        });
+
+        // === Init ===
+        loadMainConfig();
+    </script>
+</body>
+</html>

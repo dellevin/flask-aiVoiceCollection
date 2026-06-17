@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='font-awesome.css') }}">
+    <title>STT 语音识别</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+        }
+        /* 左侧面板 */
+        .left-panel {
+            max-width: 420px; width: 100%;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid #e8e8e8;
+            background: #fff;
+            height: 100vh;
+            overflow-y: auto;
+        }
+        .left-panel::-webkit-scrollbar { width: 4px; }
+        .left-panel::-webkit-scrollbar-thumb { background: #ddd; border-radius: 2px; }
+        .input-section { padding: 20px 24px 28px; }
+
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 2px;
+        }
+        .header h1 {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1a1a1a;
+            letter-spacing: -0.01em;
+        }
+        .subtitle { color: #aaa; font-size: 12px; margin-bottom: 16px; }
+        .settings-icon {
+            width: 32px; height: 32px; border: none; background: transparent;
+            color: #999; font-size: 15px; cursor: pointer; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center; transition: all 0.15s;
+        }
+        .settings-icon:hover { background: #f5f5f5; color: #333; }
+
+        .section-card {
+            background: #fafafa;
+            border: 1px solid #f0f0f0;
+            border-radius: 10px;
+            padding: 14px 16px;
+            margin-bottom: 12px;
+        }
+        .section-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .section-title i { font-size: 11px; }
+
+        .input-group { margin-bottom: 10px; position: relative; }
+        .input-group:last-child { margin-bottom: 0; }
+        .input-group label {
+            display: block; font-size: 12px; font-weight: 500;
+            margin-bottom: 4px; color: #555;
+        }
+        .input-group select {
+            width: 100%; padding: 7px 10px;
+            border: 1px solid #e0e0e0; border-radius: 6px;
+            background: #fff; color: #333; font-size: 13px;
+            outline: none; transition: all 0.15s ease;
+        }
+        .input-group select:focus {
+            border-color: #0078d4;
+            box-shadow: 0 0 0 2px rgba(0,120,212,0.06);
+        }
+
+        /* 文件上传 */
+        .file-drop {
+            border: 2px dashed #e0e0e0;
+            border-radius: 8px;
+            padding: 24px 16px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: #fff;
+        }
+        .file-drop:hover, .file-drop.dragover {
+            border-color: #0078d4;
+            background: #f0f7ff;
+        }
+        .file-drop i { font-size: 28px; color: #ccc; margin-bottom: 8px; }
+        .file-drop p { font-size: 13px; color: #999; }
+        .file-drop .filename {
+            font-size: 13px; color: #0078d4; font-weight: 600;
+            margin-top: 6px; word-break: break-all;
+        }
+        .file-drop input { display: none; }
+
+        /* 音频播放器 */
+        .audio-player {
+            display: none; margin-top: 10px;
+        }
+        .audio-player audio {
+            width: 100%; height: 36px; border-radius: 8px;
+        }
+
+        /* 格式选择 */
+        .format-group {
+            display: flex; gap: 6px;
+        }
+        .format-btn {
+            flex: 1; padding: 6px 0;
+            border: 1px solid #e0e0e0; border-radius: 6px;
+            background: #fff; color: #666;
+            font-size: 12px; font-weight: 500;
+            cursor: pointer; text-align: center;
+            transition: all 0.15s ease;
+        }
+        .format-btn:hover { border-color: #0078d4; color: #0078d4; }
+        .format-btn.active {
+            background: #e8f0fe; border-color: #0078d4; color: #0078d4;
+        }
+
+        /* 开始按钮 */
+        .run-btn {
+            width: 100%; padding: 10px 18px;
+            background: linear-gradient(135deg, #0078d4, #005fa3);
+            color: #fff; border: none; border-radius: 8px;
+            font-size: 14px; font-weight: 600;
+            cursor: pointer; transition: all 0.15s ease;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            margin-top: 14px;
+            box-shadow: 0 2px 8px rgba(0,120,212,0.2);
+        }
+        .run-btn:hover:not(:disabled) {
+            background: linear-gradient(135deg, #006cbd, #004e8a);
+            box-shadow: 0 4px 12px rgba(0,120,212,0.3);
+            transform: translateY(-1px);
+        }
+        .run-btn:active:not(:disabled) { transform: translateY(0); }
+        .run-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .spinner {
+            display: inline-block; width: 16px; height: 16px;
+            border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff;
+            border-radius: 50%; animation: spin 0.8s linear infinite;
+        }
+
+        /* ===== 右侧面板 ===== */
+        .right-panel {
+            flex: 1;
+            background: #fff;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        .right-header {
+            padding: 20px 24px 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .right-header h2 {
+            font-size: 15px; font-weight: 600; color: #333;
+        }
+        .result-badge {
+            font-size: 12px; font-weight: 600; color: #0078d4;
+            background: #e8f0fe; padding: 2px 10px; border-radius: 10px;
+        }
+
+        /* 进度 */
+        .progress-wrap {
+            padding: 16px 24px;
+            display: none;
+        }
+        .progress-bar-bg {
+            height: 6px; background: #f0f0f0;
+            border-radius: 3px; overflow: hidden;
+        }
+        .progress-bar-fill {
+            height: 100%; background: linear-gradient(90deg, #0078d4, #00a4ef);
+            border-radius: 3px; transition: width 0.3s;
+            width: 0%;
+        }
+        .progress-info {
+            display: flex; justify-content: space-between;
+            margin-top: 6px; font-size: 11px; color: #999;
+        }
+
+        /* 结果区域 */
+        .result-area {
+            flex: 1; overflow-y: auto; padding: 20px 24px;
+        }
+        .result-area::-webkit-scrollbar { width: 4px; }
+        .result-area::-webkit-scrollbar-thumb { background: #ddd; border-radius: 2px; }
+
+        .result-textarea {
+            width: 100%; height: 100%; min-height: 300px;
+            border: 1px solid #e0e0e0; border-radius: 8px;
+            padding: 12px 14px; font-size: 14px; line-height: 1.8;
+            color: #333; background: #fff; resize: vertical;
+            font-family: inherit; outline: none;
+            transition: border-color 0.15s;
+        }
+        .result-textarea:focus {
+            border-color: #0078d4;
+            box-shadow: 0 0 0 2px rgba(0,120,212,0.06);
+        }
+
+        .result-text {
+            font-size: 14px; line-height: 1.8;
+            color: #333; white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .result-srt {
+            font-size: 13px; line-height: 1.6;
+        }
+        .srt-item {
+            padding: 8px 12px; margin-bottom: 6px;
+            background: #fafafa; border: 1px solid #f0f0f0;
+            border-radius: 6px;
+        }
+        .srt-time {
+            font-size: 11px; color: #0078d4;
+            font-family: monospace; margin-bottom: 2px;
+        }
+        .srt-text { font-size: 14px; color: #333; }
+
+        /* 占位 */
+        .placeholder {
+            flex: 1; display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            color: #ccc; gap: 12px;
+        }
+        .placeholder i { font-size: 48px; }
+        .placeholder p { font-size: 13px; }
+
+        /* 操作栏 */
+        .action-bar {
+            padding: 12px 24px;
+            border-top: 1px solid #f0f0f0;
+            display: none;
+            gap: 8px;
+        }
+        .btn {
+            padding: 7px 14px; border: none; border-radius: 6px;
+            font-size: 12px; font-weight: 600; cursor: pointer;
+            transition: all 0.12s ease;
+            display: inline-flex; align-items: center; gap: 5px;
+        }
+        .btn-primary { background: #0078d4; color: #fff; }
+        .btn-primary:hover { background: #006cbd; }
+        .btn-outline { background: #fff; color: #666; border: 1px solid #e0e0e0; }
+        .btn-outline:hover { background: #f5f5f5; color: #333; }
+
+        /* Toast */
+        .toast {
+            position: fixed; top: 20px; left: 50%;
+            transform: translateX(-50%);
+            background: #0a7a1a; color: #fff;
+            padding: 10px 24px; border-radius: 8px;
+            font-size: 13px; font-weight: 500;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            opacity: 0; transition: opacity 0.3s;
+            z-index: 9999; pointer-events: none;
+        }
+        .toast.show { opacity: 1; }
+        .toast.error { background: #c62828; }
+
+        /* Settings modal */
+        .modal-overlay {
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+            z-index: 100; align-items: center; justify-content: center;
+        }
+        .modal-overlay.show { display: flex; }
+        .modal {
+            background: #fff; border-radius: 12px; width: 460px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+        }
+        .modal-header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 16px 20px; border-bottom: 1px solid #f0f0f0;
+        }
+        .modal-header h3 { font-size: 15px; font-weight: 700; }
+        .modal-close {
+            width: 28px; height: 28px; border: none; background: transparent;
+            color: #999; font-size: 16px; cursor: pointer; border-radius: 6px;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .modal-close:hover { background: #f5f5f5; }
+        .modal-body { padding: 16px 20px; }
+        .modal-body .input-group { margin-bottom: 12px; }
+        .modal-body .input-group label { font-size: 13px; }
+        .modal-body .input-group input {
+            width: 100%; padding: 7px 10px; border: 1px solid #e0e0e0; border-radius: 6px;
+            font-size: 13px; outline: none;
+        }
+        .modal-body .input-group input:focus { border-color: #0078d4; }
+        .modal-body .input-group .input-desc { font-size: 11px; color: #aaa; margin-top: 4px; }
+        .modal-footer {
+            padding: 12px 20px; border-top: 1px solid #f0f0f0;
+            display: flex; justify-content: flex-end; gap: 8px;
+        }
+        @media (max-width: 768px) {
+            body { flex-direction: column; height: auto; overflow: auto; }
+            .left-panel { width: 100% !important; max-width: 100% !important; height: auto; border-right: none; border-bottom: 1px solid #e8e8e8; overflow-y: visible; }
+            .right-panel { height: auto; min-height: 50vh; }
+            .card-pair { flex-direction: column; }
+            .modal { width: 92vw !important; max-height: 90vh; overflow-y: auto; left: 4vw !important; transform: none !important; }
+            .input-section { padding: 14px 16px 20px; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Settings modal -->
+    <div class="modal-overlay" id="settingsModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3><i class="fas fa-wrench"></i> STT 设置</h3>
+                <button class="modal-close" onclick="closeSettings()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="input-group">
+                    <label>识别模型目录</label>
+                    <input type="text" id="sttModelDir" placeholder="E:\AI\models\stt_models">
+                    <div class="input-desc">faster-whisper 模型所在目录，填写后将自动扫描可用模型</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeSettings()">取消</button>
+                <button class="btn btn-primary" onclick="saveSettings()">保存设置</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <!-- 左侧：输入 -->
+    <div class="left-panel">
+        <div class="input-section">
+            <div class="header">
+                <h1><i class="fas fa-microphone" style="color:#0078d4;font-size:16px;margin-right:6px;"></i>STT 语音识别</h1>
+                <button class="settings-icon" onclick="openSettings()"><i class="fas fa-wrench"></i></button>
+            </div>
+            <p class="subtitle">使用 faster-whisper 将音频转为文字</p>
+
+            <div class="section-card">
+                <div class="section-title"><i class="fas fa-file"></i> 上传音频</div>
+                <div class="file-drop" id="fileDrop" onclick="document.getElementById('audioFile').click()">
+                    <i class="fas fa-microphone"></i>
+                    <p id="dropText">点击或拖拽音频文件到此处</p>
+                    <div class="filename" id="fileName" style="display:none;"></div>
+                    <input type="file" id="audioFile" accept="audio/*,video/*">
+                </div>
+                <div class="audio-player" id="audioPlayer">
+                    <audio id="audioPreview" controls preload="metadata"></audio>
+                </div>
+            </div>
+
+            <div class="section-card">
+                <div class="section-title"><i class="fas fa-brain"></i> 模型与语言</div>
+                <div class="input-group">
+                    <label>识别模型</label>
+                    <select id="modelSelect">
+                        <option value="" disabled selected>请先配置模型路径</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label>语言</label>
+                    <select id="langSelect">
+                        {% for code, name in languages.items() %}
+                        <option value="{{ code }}">{{ name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label>运行设备</label>
+                    <select id="deviceSelect">
+                        <option value="cpu">CPU</option>
+                        <option value="cuda" disabled>CUDA (检测中...)</option>
+                    </select>
+                    <span id="cudaStatus" style="font-size:11px;color:#999;margin-top:3px;display:block;"></span>
+                </div>
+            </div>
+
+            <div class="section-card">
+                <div class="section-title"><i class="fas fa-list"></i> 输出格式</div>
+                <div class="format-group">
+                    <button class="format-btn active" data-fmt="text" onclick="setFormat(this)">纯文本</button>
+                    <button class="format-btn" data-fmt="srt" onclick="setFormat(this)">SRT 字幕</button>
+                    <button class="format-btn" data-fmt="json" onclick="setFormat(this)">JSON</button>
+                </div>
+            </div>
+
+            <button class="run-btn" id="startBtn" onclick="startTranscribe()" disabled>
+                <i class="fas fa-play"></i> 开始识别
+            </button>
+        </div>
+    </div>
+
+    <!-- 右侧：结果 -->
+    <div class="right-panel">
+        <div class="right-header">
+            <h2><i class="fas fa-list" style="color:#0078d4;margin-right:6px;"></i>识别结果</h2>
+            <span class="result-badge" id="resultBadge" style="display:none;"></span>
+        </div>
+        <div class="progress-wrap" id="progressWrap">
+            <div class="progress-bar-bg">
+                <div class="progress-bar-fill" id="progressFill"></div>
+            </div>
+            <div class="progress-info">
+                <span id="progressStatus">等待中...</span>
+                <span id="progressPercent">0%</span>
+            </div>
+        </div>
+        <div id="resultArea" class="result-area">
+            <div class="placeholder">
+                <i class="fas fa-microphone"></i>
+                <p>上传音频文件并点击"开始识别"</p>
+            </div>
+        </div>
+        <div class="action-bar" id="actionBar">
+            <button class="btn btn-primary" onclick="copyResult()"><i class="fas fa-copy"></i> 复制结果</button>
+            <button class="btn btn-outline" onclick="downloadResult()"><i class="fas fa-file"></i> 下载结果</button>
+        </div>
+    </div>
+
+<script>
+    // === Settings ===
+    function openSettings() {
+        document.getElementById('settingsModal').classList.add('show');
+        loadSettings();
+    }
+    function closeSettings() {
+        document.getElementById('settingsModal').classList.remove('show');
+    }
+    function loadSettings() {
+        fetch('/stt/config').then(function(r){ return r.json(); }).then(function(cfg){
+            document.getElementById('sttModelDir').value = cfg.model_dir || '';
+        });
+    }
+    function saveSettings() {
+        var cfg = { model_dir: document.getElementById('sttModelDir').value.trim() };
+        fetch('/stt/config', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify(cfg)
+        }).then(function(r){ return r.json(); }).then(function(data){
+            if (data.success) {
+                showToast('设置已保存');
+                closeSettings();
+                loadModels();
+            } else {
+                showToast(data.error || '保存失败', true);
+            }
+        });
+    }
+    function loadModels() {
+        fetch('/stt/models').then(function(r){ return r.json(); }).then(function(data){
+            var sel = document.getElementById('modelSelect');
+            sel.innerHTML = '';
+            if (data.models && data.models.length) {
+                data.models.forEach(function(m) {
+                    var opt = document.createElement('option');
+                    opt.value = m; opt.textContent = m;
+                    sel.appendChild(opt);
+                });
+                startBtn.disabled = !audioFile.files.length;
+            } else {
+                sel.innerHTML = '<option value="" disabled selected>请先配置模型路径</option>';
+                startBtn.disabled = true;
+            }
+        });
+    }
+    function loadMainConfig() {
+        fetch('/stt/config').then(function(r){ return r.json(); }).then(function(cfg){
+            var sel = document.getElementById('modelSelect');
+            sel.innerHTML = '';
+            if (cfg.model_dir && cfg.models && cfg.models.length) {
+                cfg.models.forEach(function(m) {
+                    var opt = document.createElement('option');
+                    opt.value = m; opt.textContent = m;
+                    sel.appendChild(opt);
+                });
+            } else {
+                sel.innerHTML = '<option value="" disabled selected>请先配置模型路径</option>';
+            }
+        });
+    }
+
+    var audioFile = document.getElementById('audioFile');
+    var fileDrop = document.getElementById('fileDrop');
+    var fileName = document.getElementById('fileName');
+    var dropText = document.getElementById('dropText');
+    var startBtn = document.getElementById('startBtn');
+    var progressWrap = document.getElementById('progressWrap');
+    var progressFill = document.getElementById('progressFill');
+    var progressStatus = document.getElementById('progressStatus');
+    var progressPercent = document.getElementById('progressPercent');
+    var resultArea = document.getElementById('resultArea');
+    var resultBadge = document.getElementById('resultBadge');
+    var actionBar = document.getElementById('actionBar');
+
+    var currentFormat = 'text';
+    var currentResult = '';
+    var pollTimer = null;
+
+    // 文件选择
+    audioFile.addEventListener('change', function() {
+        if (this.files.length > 0) {
+            showFile(this.files[0]);
+        }
+    });
+
+    // 拖拽
+    fileDrop.addEventListener('dragover', function(e) {
+        e.preventDefault(); this.classList.add('dragover');
+    });
+    fileDrop.addEventListener('dragleave', function() {
+        this.classList.remove('dragover');
+    });
+    fileDrop.addEventListener('drop', function(e) {
+        e.preventDefault(); this.classList.remove('dragover');
+        if (e.dataTransfer.files.length > 0) {
+            audioFile.files = e.dataTransfer.files;
+            showFile(e.dataTransfer.files[0]);
+        }
+    });
+
+    function showFile(f) {
+        fileName.textContent = f.name + ' (' + formatSize(f.size) + ')';
+        fileName.style.display = 'block';
+        dropText.style.display = 'none';
+        // 音频预览
+        var preview = document.getElementById('audioPreview');
+        var player = document.getElementById('audioPlayer');
+        preview.src = URL.createObjectURL(f);
+        player.style.display = 'block';
+        resetBtn();
+    }
+
+    function formatSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / 1048576).toFixed(1) + ' MB';
+    }
+
+    function setFormat(btn) {
+        document.querySelectorAll('.format-btn').forEach(function(b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        currentFormat = btn.dataset.fmt;
+    }
+
+    function showToast(msg, isError) {
+        var t = document.getElementById('toast');
+        t.textContent = msg;
+        t.className = 'toast show' + (isError ? ' error' : '');
+        setTimeout(function() { t.className = 'toast'; }, 1500);
+    }
+
+    // 开始识别
+    async function startTranscribe() {
+        if (!audioFile.files.length) { showToast('请先上传音频文件', true); return; }
+
+        var formData = new FormData();
+        formData.append('audio', audioFile.files[0]);
+        formData.append('model', document.getElementById('modelSelect').value);
+        formData.append('language', document.getElementById('langSelect').value);
+        formData.append('device', document.getElementById('deviceSelect').value);
+        formData.append('format', currentFormat);
+
+        startBtn.disabled = true;
+        startBtn.innerHTML = '<span class="spinner"></span> 上传中...';
+        actionBar.style.display = 'none';
+        resultBadge.style.display = 'none';
+        resultArea.innerHTML = '<div class="placeholder"><span class="spinner" style="border-color:#e0e0e0;border-top-color:#0078d4;width:32px;height:32px;"></span><p style="color:#999;margin-top:8px;">正在上传并启动识别...</p></div>';
+
+        try {
+            var res = await fetch('/stt/transcribe', { method: 'POST', body: formData });
+            var data = await res.json();
+
+            if (data.success) {
+                progressWrap.style.display = 'block';
+                progressFill.style.width = '0%';
+                progressStatus.textContent = '排队中...';
+                progressPercent.textContent = '0%';
+                startBtn.innerHTML = '<span class="spinner"></span> 识别中...';
+                pollStatus(data.task_id);
+            } else {
+                showToast(data.error || '启动失败', true);
+                resetBtn();
+            }
+        } catch (err) {
+            showToast('请求失败: ' + err.message, true);
+            resetBtn();
+        }
+    }
+
+    function pollStatus(taskId) {
+        if (pollTimer) clearInterval(pollTimer);
+        pollTimer = setInterval(async function() {
+            try {
+                var res = await fetch('/stt/status/' + taskId);
+                var data = await res.json();
+                if (!data.success) return;
+
+                var p = data.progress;
+                var pct = Math.round((p.percent || 0) * 100);
+                progressFill.style.width = pct + '%';
+                progressPercent.textContent = pct + '%';
+
+                var statusMap = {
+                    queued: '排队中...', loading: '加载模型...',
+                    transcribing: '识别中...', done: '识别完成', error: '识别失败'
+                };
+                var statusText = statusMap[p.status] || p.status;
+                if (p.warning) {
+                    statusText += ' (' + p.warning + ')';
+                    progressStatus.style.color = '#e65100';
+                }
+                progressStatus.textContent = statusText;
+
+                if (p.status === 'done') {
+                    clearInterval(pollTimer);
+                    pollTimer = null;
+                    progressFill.style.width = '100%';
+                    showResult(data.result);
+                    resetBtn();
+                } else if (p.status === 'error') {
+                    clearInterval(pollTimer);
+                    pollTimer = null;
+                    showToast(p.error || '识别失败', true);
+                    resultArea.innerHTML = '<div class="placeholder" style="color:#c62828;"><i class="fas fa-circle-exclamation"></i><p>' + (p.error || '识别失败') + '</p></div>';
+                    resetBtn();
+                }
+            } catch (err) { /* 忽略网络错误，继续轮询 */ }
+        }, 800);
+    }
+
+    function showResult(result) {
+        currentResult = result;
+        resultBadge.style.display = 'inline';
+
+        if (currentFormat === 'srt') {
+            resultBadge.textContent = 'SRT 字幕';
+            var items = result.trim().split(/\n\n+/);
+            var html = '<div class="result-srt">';
+            items.forEach(function(block) {
+                var lines = block.trim().split('\n');
+                if (lines.length >= 3) {
+                    html += '<div class="srt-item"><div class="srt-time">' + escapeHtml(lines[1]) + '</div><div class="srt-text">' + escapeHtml(lines.slice(2).join(' ')) + '</div></div>';
+                }
+            });
+            html += '</div>';
+            resultArea.innerHTML = html;
+        } else if (currentFormat === 'json') {
+            resultBadge.textContent = 'JSON';
+            resultArea.innerHTML = '<pre class="result-text" style="font-size:12px;font-family:monospace;background:#fafafa;padding:12px;border-radius:6px;overflow:auto;">' + escapeHtml(JSON.stringify(result, null, 2)) + '</pre>';
+        } else {
+            resultBadge.textContent = '纯文本';
+            resultArea.innerHTML = '<textarea class="result-textarea" id="resultTextarea">' + escapeHtml(result) + '</textarea>';
+        }
+        actionBar.style.display = 'flex';
+    }
+
+    function escapeHtml(s) {
+        if (typeof s !== 'string') return '';
+        return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function resetBtn() {
+        var hasModel = document.getElementById('modelSelect').options.length > 0 && document.getElementById('modelSelect').options[0].value !== '';
+        startBtn.disabled = !audioFile.files.length || !hasModel;
+        startBtn.innerHTML = '<i class="fas fa-play"></i> 开始识别';
+    }
+
+    // 复制
+    function copyResult() {
+        var ta = document.getElementById('resultTextarea');
+        var text = (currentFormat === 'text' && ta) ? ta.value : currentResult;
+        if (typeof text === 'object') text = JSON.stringify(text, null, 2);
+        navigator.clipboard.writeText(text).then(function() {
+            showToast('已复制到剪贴板');
+        }).catch(function() {
+            showToast('复制失败', true);
+        });
+    }
+
+    // 下载
+    function downloadResult() {
+        var ta = document.getElementById('resultTextarea');
+        var text = (currentFormat === 'text' && ta) ? ta.value : currentResult;
+        if (typeof text === 'object') text = JSON.stringify(text, null, 2);
+        var ext = currentFormat === 'srt' ? 'srt' : currentFormat === 'json' ? 'json' : 'txt';
+        var blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'stt_result.' + ext;
+        a.click();
+        URL.revokeObjectURL(a.href);
+    }
+
+    // 页面加载时检测 CUDA
+    (function() {
+        var sel = document.getElementById('deviceSelect');
+        var status = document.getElementById('cudaStatus');
+        fetch('/stt/cuda-check').then(function(r) { return r.json(); }).then(function(d) {
+            var cudaOpt = sel.querySelector('option[value="cuda"]');
+            if (d.cuda) {
+                cudaOpt.disabled = false;
+                cudaOpt.textContent = 'CUDA - ' + d.name;
+                sel.value = 'cuda';
+                status.textContent = '已检测到 GPU，已自动选择 CUDA';
+                status.style.color = '#0a7a1a';
+            } else {
+                cudaOpt.textContent = 'CUDA (不可用)';
+                status.textContent = '未检测到 CUDA，使用 CPU';
+            }
+        }).catch(function() {
+            sel.querySelector('option[value="cuda"]').textContent = 'CUDA (不可用)';
+            status.textContent = '检测失败，使用 CPU';
+        });
+    })();
+
+    // ESC 关闭弹窗
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') closeSettings();
+    });
+
+    // 初始化加载模型列表
+    loadMainConfig();
+</script>
+</body>
+</html>
