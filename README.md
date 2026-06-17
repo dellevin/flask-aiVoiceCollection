@@ -4,6 +4,16 @@
 
 ## 功能特性
 
+### 界面预览
+
+<table>
+  <tr>
+    <td><img src="img/1.png" alt="预览图片1" width="400"/></td>
+    <td><img src="img/2.png" alt="预览图片2" width="400"/></td>
+    <td><img src="img/3.png" alt="预览图片3" width="400"/></td>
+  </tr>
+</table>
+
 ### 开发工具
 - **Chmod 计算器** - 文件权限计算器
 - **JSON 格式化** - JSON 数据格式化与验证
