@@ -4,13 +4,13 @@
   "model_dir_mode": "absolute",
   "index_dir": "E:\\AI\\RVC\\rvc_con\\index",
   "index_dir_mode": "absolute",
-  "last_model": "bubu-sing.pth",
-  "last_index": "E:\\AI\\RVC\\rvc_con\\index\\bubu-sing_v2.index",
-  "f0_up_key": 0,
+  "last_model": "manbo.pth",
+  "last_index": "E:\\AI\\RVC\\rvc_con\\index\\manbo_v2.index",
+  "f0_up_key": 6,
   "f0_method": "rmvpe",
   "index_rate": 1,
-  "filter_radius": 3,
-  "resample_sr": 32000,
-  "rms_mix_rate": 0.5,
-  "protect": 0.37
+  "filter_radius": 6,
+  "resample_sr": 44100,
+  "rms_mix_rate": 0.52,
+  "protect": 0.25
 }
